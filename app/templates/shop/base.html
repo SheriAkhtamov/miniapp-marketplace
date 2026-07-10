@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="{{ user.language }}">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>Shop MiniApp</title>
+
+    <!-- Tailwind CSS (CDN Runtime) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="/static/css/style.css?v=7.8">
+
+    <!-- Google Fonts: Manrope -->
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Icons (FontAwesome CDN) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Telegram WebApp Script -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        /* ▸ КРИТИЧНО: вызываем ДО рендера body, чтобы приложение
+           сразу раскрылось на весь экран без «прыжка».
+           Реализация по официальной документации Telegram Mini Apps. */
+        (function() {
+            window.tg = window.Telegram.WebApp;
+            var tg = window.tg;
+            var root = document.documentElement.style;
+
+            tg.ready();
+            tg.expand();
+
+            /* ▸ disableVerticalSwipes — Bot API 7.7+ */
+            try { tg.disableVerticalSwipes(); } catch(e) {}
+
+            /* ▸ Viewport height (viewport_changed event) */
+            function setViewport() {
+                var h = tg.viewportStableHeight || window.innerHeight;
+                root.setProperty('--tg-viewport-height', h + 'px');
+            }
+            setViewport();
+            tg.onEvent('viewportChanged', function(e) {
+                if (e.isStateStable) setViewport();
+            });
+
+            /* ▸ Safe Areas — Bot API 7.10+ (safe_area_changed + content_safe_area_changed)
+               Telegram передаёт пиксельные значения — надёжнее чем CSS env(). */
+            function setSafeAreas() {
+                var sa = tg.safeAreaInset;
+                if (sa) {
+                    root.setProperty('--tg-safe-area-inset-top', sa.top + 'px');
+                    root.setProperty('--tg-safe-area-inset-bottom', sa.bottom + 'px');
+                    root.setProperty('--tg-safe-area-inset-left', sa.left + 'px');
+                    root.setProperty('--tg-safe-area-inset-right', sa.right + 'px');
+                }
+                var csa = tg.contentSafeAreaInset;
+                if (csa) {
+                    root.setProperty('--tg-content-safe-area-inset-top', csa.top + 'px');
+                    root.setProperty('--tg-content-safe-area-inset-bottom', csa.bottom + 'px');
+                    root.setProperty('--tg-content-safe-area-inset-left', csa.left + 'px');
+                    root.setProperty('--tg-content-safe-area-inset-right', csa.right + 'px');
+                }
+            }
+            setSafeAreas();
+            try {
+                tg.onEvent('safeAreaChanged', setSafeAreas);
+                tg.onEvent('contentSafeAreaChanged', setSafeAreas);
+            } catch(e) {}
+
+            /* ▸ Тема */
+            try {
+                tg.setHeaderColor('#f2e8dc');
+                tg.setBackgroundColor('#f2e8dc');
+            } catch(e) {}
+
+            function getStartParam() {
+                var unsafe = tg && tg.initDataUnsafe ? tg.initDataUnsafe : {};
+                var fromTelegram = unsafe.start_param || unsafe.startParam || '';
+                if (fromTelegram) return fromTelegram;
+
+                var params = new URLSearchParams(window.location.search);
+                return params.get('tgWebAppStartParam') || params.get('startapp') || params.get('start_param') || '';
+            }
+
+            var startParam = getStartParam();
+            if (/^(product|category)_\d+$/.test(startParam)) {
+                var pageUrl = new URL(window.location.href);
+                var storageKey = 'unicom-startapp:' + startParam;
+                var handledAt = 0;
+                try { handledAt = Number(sessionStorage.getItem(storageKey) || 0); } catch(e) {}
+
+                if (pageUrl.searchParams.get('from_startapp') === '1') {
+                    try { sessionStorage.setItem(storageKey, String(Date.now())); } catch(e) {}
+                } else if (!handledAt || Date.now() - handledAt > 10 * 60 * 1000) {
+                    try { sessionStorage.setItem(storageKey, String(Date.now())); } catch(e) {}
+                    window.location.replace('/shop/deeplink/' + encodeURIComponent(startParam));
+                }
+            }
+        })();
+    </script>
+
+    <style>
+        .link-version { display: none; }
+    </style>
+</head>
+
+<body class="pb-nav pt-safe select-none touch-pan-y antialiased"
+    data-phone-request-url="{{ phone_registration_start_link() }}">
+    <div class="fade-in">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="fixed bottom-0 left-0 right-0 glass-panel z-40" style="padding-bottom: var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));">
+        <div class="flex justify-around items-center py-1.5 max-w-lg mx-auto">
+
+            <a href="/shop" onclick="tg.HapticFeedback.impactOccurred('light')"
+                class="nav-item flex flex-col items-center justify-center gap-0.5 py-2 px-5 transition duration-200" style="min-width:48px;min-height:48px;">
+                <i class="fas fa-home text-xl nav-icon text-[#B09B8B]"></i>
+                <span class="w-1 h-1 rounded-full bg-[#3E2310] opacity-0 nav-dot transition-opacity duration-200"></span>
+            </a>
+
+            <a href="/shop/categories" onclick="tg.HapticFeedback.impactOccurred('light')"
+                class="nav-item flex flex-col items-center justify-center gap-0.5 py-2 px-5 transition duration-200" style="min-width:48px;min-height:48px;">
+                <i class="fas fa-th-large text-xl nav-icon text-[#B09B8B]"></i>
+                <span class="w-1 h-1 rounded-full bg-[#3E2310] opacity-0 nav-dot transition-opacity duration-200"></span>
+            </a>
+
+            <a href="/shop/cart" onclick="tg.HapticFeedback.impactOccurred('light')"
+                class="nav-item flex flex-col items-center justify-center gap-0.5 py-2 px-5 relative transition duration-200" style="min-width:48px;min-height:48px;">
+                <div class="relative">
+                    <i class="fas fa-shopping-bag text-xl nav-icon text-[#B09B8B]"></i>
+                    <span id="cart-badge"
+                        class="hidden absolute -top-1.5 -right-2.5 bg-[#ef4444] text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full border-2 border-[#FCF9F5] leading-none">0</span>
+                </div>
+                <span class="w-1 h-1 rounded-full bg-[#3E2310] opacity-0 nav-dot transition-opacity duration-200"></span>
+            </a>
+
+            <a href="/shop/profile" onclick="tg.HapticFeedback.impactOccurred('light')"
+                class="nav-item flex flex-col items-center justify-center gap-0.5 py-2 px-5 transition duration-200" style="min-width:48px;min-height:48px;">
+                <i class="fas fa-user text-xl nav-icon text-[#B09B8B]"></i>
+                <span class="w-1 h-1 rounded-full bg-[#3E2310] opacity-0 nav-dot transition-opacity duration-200"></span>
+            </a>
+        </div>
+    </nav>
+
+    <script>window.T = {{ get_js_translations(user.language) | tojson }};</script>
+    <script src="/static/js/main.js?v=7.7"></script>
+    <script>
+        // Navigation Active State Logic
+        (function() {
+            var p = window.location.pathname;
+            var n = document.querySelectorAll('.nav-item');
+            if (p === '/shop' || p === '/shop/') n[0] && n[0].classList.add('active');
+            else if (p.indexOf('/shop/categor') !== -1) n[1] && n[1].classList.add('active');
+            else if (p.indexOf('/shop/cart') !== -1) n[2] && n[2].classList.add('active');
+            else if (p.indexOf('/shop/profile') !== -1 || p.indexOf('/shop/favorites') !== -1) n[3] && n[3].classList.add('active');
+        })();
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

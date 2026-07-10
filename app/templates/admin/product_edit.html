@@ -1,0 +1,619 @@
+{% extends layout_template %}
+
+{% block header %}
+{% if product %}Редактирование товара{% else %}Добавление товара{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if embed %}
+<style>
+    body { background: #FCF9F5; }
+    /* Make the iframe scrollbar less aggressive */
+    html { scrollbar-width: thin; scrollbar-color: #D6C0AD transparent; }
+    html::-webkit-scrollbar { width: 8px; height: 8px; }
+    html::-webkit-scrollbar-thumb { background: #D6C0AD; border-radius: 8px; }
+    html::-webkit-scrollbar-track { background: transparent; }
+</style>
+<div class="px-4 pt-5 pb-24 md:px-7 md:pt-6 md:pb-24">
+{% else %}
+<div class="max-w-4xl mx-auto">
+<div class="glass-card p-6 md:p-8">
+{% endif %}
+        <form id="product-form"
+            action="{% if product %}/admin/products/{{ product.id }}/edit{% else %}/admin/products/new{% endif %}{% if embed %}?embed=1{% endif %}"
+            method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <script>
+                const urlParams = new URLSearchParams(window.location.search);
+                const error = urlParams.get('error');
+                if (error === 'invalid_image') {
+                    document.write(`
+                        <div class="bg-red-50 border border-red-200 text-red-600 p-4 mb-6 rounded-xl flex items-center" role="alert">
+                            <i class="fas fa-exclamation-triangle mr-3 text-xl"></i>
+                            <div>
+                                <p class="font-bold">Ошибка загрузки</p>
+                                <p class="text-sm">Не удалось обработать изображение. Пожалуйста, попробуйте другой файл.</p>
+                            </div>
+                        </div>
+                    `);
+                } else if (error === 'db_error') {
+                    document.write(`
+                        <div class="bg-red-50 border border-red-200 text-red-600 p-4 mb-6 rounded-xl flex items-center" role="alert">
+                            <i class="fas fa-exclamation-triangle mr-3 text-xl"></i>
+                            <div>
+                                <p class="font-bold">Ошибка сохранения</p>
+                                <p class="text-sm">Не удалось сохранить товар. Попробуйте ещё раз.</p>
+                            </div>
+                        </div>
+                    `);
+                } else if (error === 'invalid_category') {
+                    document.write(`
+                        <div class="bg-red-50 border border-red-200 text-red-600 p-4 mb-6 rounded-xl flex items-center" role="alert">
+                            <i class="fas fa-exclamation-triangle mr-3 text-xl"></i>
+                            <div>
+                                <p class="font-bold">Категория недоступна</p>
+                                <p class="text-sm">Выберите активную категорию. Архивные категории нельзя использовать для активных товаров.</p>
+                            </div>
+                        </div>
+                    `);
+                } else if (error === 'invalid_discount') {
+                    document.write(`
+                        <div class="bg-red-50 border border-red-200 text-red-600 p-4 mb-6 rounded-xl flex items-center" role="alert">
+                            <i class="fas fa-exclamation-triangle mr-3 text-xl"></i>
+                            <div>
+                                <p class="font-bold">Проверьте скидку</p>
+                                <p class="text-sm">Скидочная цена должна быть меньше обычной цены товара.</p>
+                            </div>
+                        </div>
+                    `);
+                }
+            </script>
+
+            <div class="-mx-3 md:flex mb-6">
+                <div class="md:w-1/2 px-3 mb-6 md:mb-0">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        Название (RU) <span class="text-red-400">*</span>
+                    </label>
+                    <input name="name_ru" value="{% if product %}{{ product.name_ru }}{% endif %}"
+                        class="appearance-none block w-full bg-[#F9F4EF] text-[#3E2310] border border-[#D6C0AD] rounded-xl py-3 px-4 mb-3 focus:outline-none focus:bg-white focus:border-[#6B3F1E]"
+                        type="text" required placeholder="Например: Стакан 200мл">
+                </div>
+                <div class="md:w-1/2 px-3">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        Название (UZ) <span class="text-red-400">*</span>
+                    </label>
+                    <input name="name_uz" value="{% if product %}{{ product.name_uz }}{% endif %}"
+                        class="appearance-none block w-full bg-[#F9F4EF] text-[#3E2310] border border-[#D6C0AD] rounded-xl py-3 px-4 focus:outline-none focus:bg-white focus:border-[#6B3F1E]"
+                        type="text" required placeholder="Masalan: Stakan 200ml">
+                </div>
+            </div>
+
+            <div class="-mx-3 md:flex mb-6">
+                <div class="md:w-1/2 px-3 mb-6 md:mb-0">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        Категория <span class="text-red-400">*</span>
+                    </label>
+                    <div class="relative">
+                        <select name="category_id"
+                            class="block appearance-none w-full bg-[#F9F4EF] border border-[#D6C0AD] text-[#3E2310] py-3 px-4 pr-8 rounded-xl focus:outline-none focus:bg-white focus:border-[#6B3F1E]"
+                            required>
+                            {% for cat in categories %}
+                            <option value="{{ cat.id }}" {% if product and product.category_id==cat.id %}selected{%
+                                endif %}>{{ cat.name_ru }}{% if not cat.is_active %} (архив){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-[#3E2310]">
+                            <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                                <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="md:w-1/4 px-3 mb-6 md:mb-0">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        Цена (сум) <span class="text-red-400">*</span>
+                    </label>
+                    <input name="price" id="price-input" value="{% if product %}{{ product.price }}{% endif %}"
+                        class="appearance-none block w-full bg-[#F9F4EF] text-[#3E2310] border border-[#D6C0AD] rounded-xl py-3 px-4 focus:outline-none focus:bg-white focus:border-[#6B3F1E]"
+                        type="number" min="1" required placeholder="0">
+                </div>
+                <div class="md:w-1/4 px-3">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        Кол-во на складе <span class="text-red-400">*</span>
+                    </label>
+                    <input name="stock" value="{% if product %}{{ product.stock }}{% endif %}"
+                        class="appearance-none block w-full bg-[#F9F4EF] text-[#3E2310] border border-[#D6C0AD] rounded-xl py-3 px-4 focus:outline-none focus:bg-white focus:border-[#6B3F1E]"
+                        type="number" min="0" required placeholder="0">
+                </div>
+            </div>
+
+            <div class="-mx-3 md:flex mb-6">
+                <div class="md:w-1/2 px-3 mb-6 md:mb-0">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        Скидочная цена
+                    </label>
+                    <input name="discount_price" id="discount-price-input"
+                        value="{% if product and product.discount_price %}{{ product.discount_price }}{% endif %}"
+                        class="appearance-none block w-full bg-[#F9F4EF] text-[#3E2310] border border-[#D6C0AD] rounded-xl py-3 px-4 focus:outline-none focus:bg-white focus:border-[#6B3F1E]"
+                        type="number" min="1" placeholder="Оставьте пустым без скидки">
+                    <p class="text-[10px] text-[#8C735F] mt-1 pl-1">Покупатель будет платить эту цену, если она ниже обычной.</p>
+                </div>
+                <div class="md:w-1/2 px-3">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        Вид на витрине
+                    </label>
+                    <div class="min-h-[48px] bg-[#F9F4EF] border border-[#D6C0AD] rounded-xl py-2.5 px-4 flex items-center justify-between gap-3">
+                        <div>
+                            <p id="discount-preview-current" class="text-lg font-extrabold text-[#6B3F1E] tabular-nums">0 сум</p>
+                            <p id="discount-preview-old" class="hidden text-xs font-bold text-[#B09B8B] line-through tabular-nums"></p>
+                        </div>
+                        <span id="discount-preview-badge" class="hidden bg-red-50 text-red-600 border border-red-100 rounded-lg px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="-mx-3 md:flex mb-6">
+                <div class="md:w-1/3 px-3 mb-6 md:mb-0">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        Формат продажи
+                    </label>
+                    <div class="relative">
+                        <select name="sell_type" id="sell-type-select"
+                            class="block appearance-none w-full bg-[#F9F4EF] border border-[#D6C0AD] text-[#3E2310] py-3 px-4 pr-8 rounded-xl focus:outline-none focus:bg-white focus:border-[#6B3F1E]"
+                            onchange="togglePackFields()">
+                            <option value="piece" {% if not product or product.sell_type !='pack' %}selected{% endif %}>
+                                Поштучно</option>
+                            <option value="pack" {% if product and product.sell_type=='pack' %}selected{% endif %}>
+                                Упаковками</option>
+                        </select>
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-[#3E2310]">
+                            <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                                <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="md:w-1/3 px-3 mb-6 md:mb-0" id="pack-qty-wrap"
+                    style="{% if not product or product.sell_type != 'pack' %}display:none{% endif %}">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        Шт. в упаковке <span class="text-red-400">*</span>
+                    </label>
+                    <input name="pack_quantity" id="pack-qty-input"
+                        value="{% if product and product.pack_quantity %}{{ product.pack_quantity }}{% endif %}"
+                        class="appearance-none block w-full bg-[#F9F4EF] text-[#3E2310] border border-[#D6C0AD] rounded-xl py-3 px-4 focus:outline-none focus:bg-white focus:border-[#6B3F1E]"
+                        type="number" min="1" placeholder="Напр: 100, 1000, 5000">
+                </div>
+                <div class="md:w-1/3 px-3" id="pack-hint-wrap"
+                    style="{% if not product or product.sell_type != 'pack' %}display:none{% endif %}">
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mt-6 text-xs text-amber-700">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Цена и склад считаются <b>за упаковку</b>, а не за единицу.
+                    </div>
+                </div>
+            </div>
+
+            <div class="-mx-3 md:flex mb-6">
+                <div class="md:w-1/2 px-3 mb-6 md:mb-0">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        ИКПУ (mxik) <span class="text-red-400">*</span>
+                    </label>
+                    <input name="ikpu" id="ikpu-input"
+                        value="{% if product and product.ikpu %}{{ product.ikpu }}{% else %}00702001001000000{% endif %}"
+                        class="appearance-none block w-full bg-[#F9F4EF] text-[#3E2310] border border-[#D6C0AD] rounded-xl py-3 px-4 focus:outline-none focus:bg-white focus:border-[#6B3F1E]"
+                        type="text" inputmode="numeric" pattern="\d{14,17}" maxlength="17" minlength="14" required
+                        placeholder="00702001001000000"
+                        oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 17)">
+                    <p class="text-[10px] text-[#8C735F] mt-1 pl-1">Только цифры, от 14 до 17 символов</p>
+                </div>
+                <div class="md:w-1/2 px-3">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        Код упаковки <span class="text-red-400">*</span>
+                    </label>
+                    <input name="package_code"
+                        value="{% if product and product.package_code %}{{ product.package_code }}{% else %}000000{% endif %}"
+                        class="appearance-none block w-full bg-[#F9F4EF] text-[#3E2310] border border-[#D6C0AD] rounded-xl py-3 px-4 focus:outline-none focus:bg-white focus:border-[#6B3F1E]"
+                        type="text" required placeholder="000000">
+                </div>
+            </div>
+
+            <div class="-mx-3 md:flex mb-6">
+                <div class="md:w-full px-3">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        Описание (RU)
+                    </label>
+                    <textarea name="description_ru"
+                        class="appearance-none block w-full bg-[#F9F4EF] text-[#3E2310] border border-[#D6C0AD] rounded-xl py-3 px-4 mb-3 focus:outline-none focus:bg-white focus:border-[#6B3F1E]"
+                        rows="3">{% if product %}{{ product.description_ru }}{% endif %}</textarea>
+                </div>
+            </div>
+
+            <div class="-mx-3 md:flex mb-6">
+                <div class="md:w-full px-3">
+                    <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-2 pl-1">
+                        Описание (UZ)
+                    </label>
+                    <textarea name="description_uz"
+                        class="appearance-none block w-full bg-[#F9F4EF] text-[#3E2310] border border-[#D6C0AD] rounded-xl py-3 px-4 mb-3 focus:outline-none focus:bg-white focus:border-[#6B3F1E]"
+                        rows="3">{% if product %}{{ product.description_uz }}{% endif %}</textarea>
+                </div>
+            </div>
+
+            <!-- ════════ ФОТОГРАФИИ ════════ -->
+            <div class="mb-8">
+                <label class="block uppercase tracking-wide text-[#3E2310] text-xs font-bold mb-3 pl-1">
+                    Медиа — фото и видео (до 10 шт.) <span class="text-red-400">*</span>
+                </label>
+
+                <!-- Grid: existing photos + new previews -->
+                <div id="photo-grid" class="grid grid-cols-3 md:grid-cols-5 gap-3 mb-3">
+                    {% if product and product.image_path %}
+                    <div class="relative group" data-existing id="main-photo-card">
+                        <img src="{{ product.image_path }}"
+                            class="w-full h-24 object-cover rounded-xl border-2 border-[#6B3F1E] ring-2 ring-[#6B3F1E]/30">
+                        <span
+                            class="absolute top-1 left-1 bg-[#6B3F1E] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">Главное</span>
+                        <button type="button"
+                            class="absolute top-1 right-1 bg-red-500/90 hover:bg-red-600 text-white w-7 h-7 rounded-full flex items-center justify-center shadow-lg transition"
+                            onclick="deletePhoto('/admin/products/{{ product.id }}/image/delete', 'main-photo-card', 'Удалить главное фото?')">
+                            <i class="fas fa-trash text-[10px]"></i>
+                        </button>
+                    </div>
+                    {% endif %}
+                    {% if product and extra_images %}
+                    {% for img in extra_images %}
+                    <div class="relative group" data-existing id="extra-photo-{{ img.id }}">
+                        {% if img.media_type == 'video' %}
+                        <video src="{{ img.image_path }}" {% if img.poster_path %}poster="{{ img.poster_path }}"{% endif %} muted class="w-full h-24 object-cover rounded-xl border border-[#D6C0AD]"></video>
+                        <span class="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md"><i class="fas fa-video mr-0.5"></i>Видео</span>
+                        {% else %}
+                        <img src="{{ img.image_path }}" class="w-full h-24 object-cover rounded-xl border border-[#D6C0AD]">
+                        {% endif %}
+                        <button type="button"
+                            class="absolute top-1 right-1 bg-red-500/90 hover:bg-red-600 text-white w-7 h-7 rounded-full flex items-center justify-center shadow-lg transition"
+                            onclick="deletePhoto('/admin/products/images/{{ img.id }}/delete', 'extra-photo-{{ img.id }}', 'Удалить медиа?')">
+                            <i class="fas fa-trash text-[10px]"></i>
+                        </button>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+
+                <!-- Hidden file input -->
+                <input type="file" name="images" accept="image/*,video/mp4,video/webm,video/quicktime,video/x-msvideo"
+                    multiple class="hidden" id="file-input"
+                    data-admin-image-cropper data-crop-title="Фото товара"
+                    data-crop-width="1200" data-crop-height="1200">
+
+                <!-- Upload button -->
+                <div class="relative border-2 border-dashed border-[#D6C0AD] rounded-xl bg-[#F9F4EF] hover:bg-white transition p-4 text-center group cursor-pointer"
+                    id="upload-zone" onclick="document.getElementById('file-input').click()">
+                    <i class="fas fa-plus text-xl text-[#D6C0AD] group-hover:text-[#6B3F1E] transition mb-1"></i>
+                    <p class="text-sm text-[#8C735F]">Нажмите, чтобы добавить фото или видео</p>
+                </div>
+                <p id="photo-count" class="text-xs text-[#8C735F] mt-2"></p>
+            </div>
+
+            <!-- Upload progress bar (hidden by default) -->
+            <div id="upload-progress-wrap" class="mb-4 hidden">
+                <div class="flex items-center justify-between text-xs text-[#8C735F] mb-1">
+                    <span>Загрузка файлов…</span>
+                    <span id="upload-progress-pct">0%</span>
+                </div>
+                <div class="w-full bg-[#E8DDD3] rounded-full h-2.5 overflow-hidden">
+                    <div id="upload-progress-bar" class="bg-[#6B3F1E] h-2.5 rounded-full transition-all duration-200" style="width:0%"></div>
+                </div>
+            </div>
+
+            {% if embed %}
+            <div class="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur border-t border-[#E0CCB7]/60 px-4 md:px-7 py-3 flex items-center justify-end gap-2 shadow-[0_-4px_20px_-8px_rgba(62,35,16,0.15)]">
+                <button type="button"
+                    class="bg-[#EFE6DB] hover:bg-[#E0CCB7] text-[#3E2310] font-bold py-2.5 px-4 md:px-5 rounded-xl transition text-sm"
+                    onclick="closeProductModal()">
+                    Отмена
+                </button>
+                <button class="admin-btn-accent" type="submit" id="product-submit-btn">
+                    <i class="fas fa-save mr-1.5"></i> Сохранить
+                </button>
+            </div>
+            {% else %}
+            <div class="flex items-center justify-end">
+                <a href="/admin/products"
+                    class="text-[#8C735F] hover:text-[#3E2310] font-bold py-2.5 px-5 mr-3 rounded-xl transition text-sm">
+                    Отмена
+                </a>
+                <button class="admin-btn-accent" type="submit" id="product-submit-btn">
+                    <i class="fas fa-save mr-1.5"></i> Сохранить товар
+                </button>
+            </div>
+            {% endif %}
+        </form>
+{% if embed %}
+</div>
+{% else %}
+    </div>
+</div>
+{% endif %}
+
+<script>
+    const isEmbedMode = {{ 'true' if embed else 'false' }};
+
+    function closeProductModal() {
+        if (isEmbedMode && window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'admin-product-close' }, window.location.origin);
+            return;
+        }
+        window.location.href = '/admin/products';
+    }
+
+    function deletePhoto(url, cardId, confirmMsg) {
+        if (!confirm(confirmMsg)) return;
+        const formData = new FormData();
+        formData.append('csrf_token', '{{ csrf_token }}');
+        fetch(url, { method: 'POST', body: formData })
+            .then(resp => {
+                if (resp.redirected || resp.ok) {
+                    const card = document.getElementById(cardId);
+                    if (card) card.remove();
+                    // Update photo count
+                    if (typeof renderPreviews === 'function') renderPreviews();
+                    // Reload to refresh state
+                    window.location.reload();
+                } else {
+                    alert('Ошибка удаления фото');
+                }
+            })
+            .catch(() => alert('Ошибка удаления фото'));
+    }
+
+    function togglePackFields() {
+        const sel = document.getElementById('sell-type-select');
+        const isPack = sel.value === 'pack';
+        document.getElementById('pack-qty-wrap').style.display = isPack ? '' : 'none';
+        document.getElementById('pack-hint-wrap').style.display = isPack ? '' : 'none';
+        const packInput = document.getElementById('pack-qty-input');
+        if (isPack) {
+            packInput.required = true;
+        } else {
+            packInput.required = false;
+            packInput.value = '';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', togglePackFields);
+
+    function formatAdminSum(value) {
+        return (parseInt(value) || 0).toLocaleString('ru-RU') + ' сум';
+    }
+
+    function updateDiscountPreview() {
+        const priceInput = document.getElementById('price-input');
+        const discountInput = document.getElementById('discount-price-input');
+        const currentEl = document.getElementById('discount-preview-current');
+        const oldEl = document.getElementById('discount-preview-old');
+        const badgeEl = document.getElementById('discount-preview-badge');
+        const price = parseInt(priceInput.value) || 0;
+        const discount = parseInt(discountInput.value) || 0;
+
+        if (price > 1) {
+            discountInput.max = String(price - 1);
+        } else {
+            discountInput.removeAttribute('max');
+        }
+
+        if (discount > 0 && discount < price) {
+            const percent = Math.max(1, Math.round((price - discount) * 100 / price));
+            currentEl.textContent = formatAdminSum(discount);
+            currentEl.className = 'text-lg font-extrabold text-red-600 tabular-nums';
+            oldEl.textContent = formatAdminSum(price);
+            oldEl.classList.remove('hidden');
+            badgeEl.textContent = '-' + percent + '%';
+            badgeEl.classList.remove('hidden');
+        } else {
+            currentEl.textContent = formatAdminSum(price);
+            currentEl.className = 'text-lg font-extrabold text-[#6B3F1E] tabular-nums';
+            oldEl.classList.add('hidden');
+            badgeEl.classList.add('hidden');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        updateDiscountPreview();
+        document.getElementById('price-input').addEventListener('input', updateDiscountPreview);
+        document.getElementById('discount-price-input').addEventListener('input', updateDiscountPreview);
+    });
+
+    document.getElementById('product-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const sel = document.getElementById('sell-type-select');
+        if (sel.value === 'pack') {
+            const qty = parseInt(document.getElementById('pack-qty-input').value);
+            if (!qty || qty < 1) {
+                alert('Укажите количество штук в упаковке');
+                return;
+            }
+        }
+
+        const price = parseInt(document.getElementById('price-input').value) || 0;
+        const discount = parseInt(document.getElementById('discount-price-input').value) || 0;
+        if (discount > 0 && discount >= price) {
+            alert('Скидочная цена должна быть меньше обычной цены');
+            return;
+        }
+
+        const submitBtn = document.getElementById('product-submit-btn');
+        if (submitBtn.dataset.locked === '1') return;
+        submitBtn.dataset.locked = '1';
+        submitBtn.disabled = true;
+
+        const form = this;
+        const formData = new FormData(form);
+        const hasVideo = Array.from(formData.getAll('images')).some(f => f.size && /\.(mp4|webm|mov|avi)$/i.test(f.name));
+
+        const progressWrap = document.getElementById('upload-progress-wrap');
+        const progressBar = document.getElementById('upload-progress-bar');
+        const progressPct = document.getElementById('upload-progress-pct');
+
+        if (hasVideo) {
+            progressWrap.classList.remove('hidden');
+        }
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Загрузка… 0%';
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', form.action, true);
+
+        xhr.upload.onprogress = function (ev) {
+            if (ev.lengthComputable) {
+                const pct = Math.round((ev.loaded / ev.total) * 100);
+                progressBar.style.width = pct + '%';
+                progressPct.textContent = pct + '%';
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Загрузка… ' + pct + '%';
+            }
+        };
+
+        xhr.onload = function () {
+            if (xhr.status >= 200 && xhr.status < 400) {
+                const responseUrl = xhr.responseURL || form.action;
+                if (responseUrl.includes('error=')) {
+                    window.location.href = responseUrl;
+                    return;
+                }
+                submitBtn.innerHTML = '<i class="fas fa-check mr-1.5"></i> Готово!';
+                if (isEmbedMode && window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'admin-product-saved' }, window.location.origin);
+                    return;
+                }
+                window.location.href = responseUrl || '/admin/products';
+            } else {
+                submitBtn.dataset.locked = '';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-save mr-1.5"></i> Сохранить товар';
+                progressWrap.classList.add('hidden');
+                alert('Ошибка сохранения. Попробуйте ещё раз.');
+            }
+        };
+
+        xhr.onerror = function () {
+            submitBtn.dataset.locked = '';
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-save mr-1.5"></i> Сохранить товар';
+            progressWrap.classList.add('hidden');
+            alert('Ошибка сети. Проверьте подключение.');
+        };
+
+        xhr.send(formData);
+    });
+</script>
+
+<script>
+    (function () {
+        const input = document.getElementById('file-input');
+        const grid = document.getElementById('photo-grid');
+        const countEl = document.getElementById('photo-count');
+        const MAX_PHOTOS = 10;
+
+        // Accumulated new files (persist across multiple selections)
+        let pendingFiles = [];
+
+        input.addEventListener('change', function () {
+            // ADD new files to pending list (not replace)
+            const newFiles = Array.from(this.files);
+            const existingCount = grid.querySelectorAll('[data-existing]').length;
+            const maxNew = MAX_PHOTOS - existingCount;
+
+            for (const f of newFiles) {
+                if (pendingFiles.length >= maxNew) break;
+                pendingFiles.push(f);
+            }
+
+            renderPreviews();
+            syncInput();
+        });
+
+        function removePendingFile(idx) {
+            pendingFiles.splice(idx, 1);
+            renderPreviews();
+            syncInput();
+        }
+        // Expose globally for onclick
+        window.removePendingFile = removePendingFile;
+
+        function syncInput() {
+            const dt = new DataTransfer();
+            pendingFiles.forEach(f => dt.items.add(f));
+            input.files = dt.files;
+        }
+
+        function renderPreviews() {
+            // Remove old previews (keep server-side existing photos)
+            grid.querySelectorAll('[data-new]').forEach(el => el.remove());
+
+            const existingCount = grid.querySelectorAll('[data-existing]').length;
+            const noMainExists = existingCount === 0;
+
+            const VIDEO_EXTS = ['mp4','webm','mov','avi'];
+            function isVideoFile(f) {
+                const ext = f.name.split('.').pop().toLowerCase();
+                return VIDEO_EXTS.includes(ext);
+            }
+
+            // For "main" badge: first non-video file when no existing photos
+            let firstImageIdx = -1;
+            if (noMainExists) {
+                firstImageIdx = pendingFiles.findIndex(f => !isVideoFile(f));
+            }
+
+            pendingFiles.forEach((file, i) => {
+                const div = document.createElement('div');
+                div.className = 'relative group';
+                div.setAttribute('data-new', '');
+
+                const isMain = (i === firstImageIdx);
+                const borderCls = isMain
+                    ? 'border-2 border-[#6B3F1E] ring-2 ring-[#6B3F1E]/30'
+                    : 'border border-[#D6C0AD]';
+
+                const isVideo = isVideoFile(file);
+
+                if (isVideo) {
+                    const url = URL.createObjectURL(file);
+                    div.innerHTML = `
+                    <video src="${url}" muted class="w-full h-24 object-cover rounded-xl ${borderCls}"></video>
+                    <span class="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md"><i class="fas fa-video mr-0.5"></i>Видео</span>
+                    <button type="button" onclick="removePendingFile(${i})"
+                        class="absolute top-1 right-1 bg-red-500/90 hover:bg-red-600 text-white w-7 h-7 rounded-full flex items-center justify-center shadow-lg transition">
+                        <i class="fas fa-trash text-[10px]"></i>
+                    </button>
+                    `;
+                } else {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        div.innerHTML = `
+                        <img src="${e.target.result}" class="w-full h-24 object-cover rounded-xl ${borderCls}">
+                        ${isMain ? '<span class="absolute top-1 left-1 bg-[#6B3F1E] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">Главное</span>' : ''}
+                        <button type="button" onclick="removePendingFile(${i})"
+                            class="absolute top-1 right-1 bg-red-500/90 hover:bg-red-600 text-white w-7 h-7 rounded-full flex items-center justify-center shadow-lg transition">
+                            <i class="fas fa-trash text-[10px]"></i>
+                        </button>
+                        `;
+                    };
+                    reader.readAsDataURL(file);
+                }
+                grid.appendChild(div);
+            });
+
+            const total = existingCount + pendingFiles.length;
+            if (total > 0) {
+                countEl.textContent = `Медиа: ${total} из ${MAX_PHOTOS}` + (noMainExists && firstImageIdx >= 0 ? ' (первое фото — главное)' : '');
+            } else {
+                countEl.textContent = '';
+            }
+        }
+
+        // Initial count
+        renderPreviews();
+    })();
+</script>
+{% endblock %}

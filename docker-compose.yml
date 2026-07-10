@@ -1,0 +1,126 @@
+x-default-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: shop_db
+    restart: always
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:-postgres}
+      POSTGRES_DB: ${DB_NAME:-shop_db}
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: shop_redis
+    restart: always
+    logging: *default-logging
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: shop_app
+    restart: always
+    logging: *default-logging
+    env_file:
+      - .env
+    command: sh -c "sed -i 's/\r$$//' entrypoint.sh && sh entrypoint.sh"
+    volumes:
+      - .:/app
+      - media_data:/app/media
+      - ./logs:/app/logs
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    environment:
+      - DB_HOST=db
+      - REDIS_URL=redis://redis:6379/0
+      - HR_INTERNAL_URL=http://hr:3000
+
+  hr:
+    image: node:22-bookworm-slim
+    container_name: shop_hr
+    restart: always
+    logging: *default-logging
+    working_dir: "/app/UNICOM HR отдел/AI hr bot"
+    command: sh -c "npm start"
+    volumes:
+      - .:/app
+      - type: volume
+        source: hr_node_modules
+        target: /app/UNICOM HR отдел/AI hr bot/node_modules
+    expose:
+      - "3000"
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      - PORT=3000
+      - UNICOM_MARKET_BASE_URL=http://app:8000
+      - UNICOM_MARKET_WORKSPACE_URL=/admin
+      - UNICOM_HR_WORKSPACE_URL=/hr/
+      - HR_TELEGRAM_BOT_TOKEN=${HR_TELEGRAM_BOT_TOKEN:-}
+      - HR_PG_HOST=db
+      - HR_PG_PORT=5432
+      - HR_PG_USER=${DB_USER:-postgres}
+      - HR_PG_PASSWORD=${DB_PASS:-postgres}
+      - HR_PG_DATABASE=${DB_NAME:-shop_db}
+      - HR_DATABASE_PATH=/app/UNICOM HR отдел/AI hr bot/data/hr-bot.sqlite
+
+  nginx:
+    image: nginx:alpine
+    container_name: shop_nginx
+    restart: always
+    logging: *default-logging
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/shop_ssl.conf:/etc/nginx/conf.d/default.conf
+      - ./final_certs:/etc/nginx/ssl:ro
+      - .:/app
+      - media_data:/app/media
+    depends_on:
+      app:
+        condition: service_healthy
+      hr:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  media_data:
+  redis_data:
+  hr_node_modules:

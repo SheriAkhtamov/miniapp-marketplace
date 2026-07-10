@@ -1,0 +1,328 @@
+{% extends "shop/base.html" %}
+
+{% block content %}
+{% set lang_next = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
+<!-- Шапка: Поиск и Язык -->
+<div class="sticky top-0 page-header z-30 px-4 py-3">
+    <div class="flex justify-between items-center mb-3">
+        <div class="min-w-0">
+            <img src="/static/img/logo.png" alt="UNICOM" class="h-[42px] object-contain">
+            <p class="text-[11px] text-[#8C735F] font-medium mt-0.5">{{ tr('subtitle', user.language) }}</p>
+        </div>
+        <div class="flex text-[13px] font-bold bg-white/60 p-1 rounded-xl border border-[#E0CCB7]/40 flex-shrink-0">
+            <a href="/shop/set_lang?lang=ru&next={{ lang_next | urlencode }}"
+                class="px-2.5 py-1 rounded-lg transition-all duration-200 {% if user.language == 'ru' %}bg-[#3E2310] text-white shadow-sm{% else %}text-[#8C735F]{% endif %}">RU</a>
+            <a href="/shop/set_lang?lang=uz&next={{ lang_next | urlencode }}"
+                class="px-2.5 py-1 rounded-lg transition-all duration-200 {% if user.language == 'uz' %}bg-[#3E2310] text-white shadow-sm{% else %}text-[#8C735F]{% endif %}">UZ</a>
+        </div>
+    </div>
+
+    <form action="/shop/search" method="get" class="flex items-center gap-2" role="search">
+        <div class="relative flex-1">
+            <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-[#B09B8B] text-sm"></i>
+            <input type="search" name="q" enterkeyhint="search"
+                placeholder="{{ tr('search_placeholder', user.language) }}"
+                class="w-full input-surface pl-10 pr-4 py-2.5 text-sm placeholder-[#B09B8B] focus:outline-none">
+        </div>
+        <button type="submit"
+            class="h-[46px] px-4 rounded-2xl bg-[#3E2310] text-white font-bold shadow-[0_12px_24px_rgba(62,35,16,0.18)] active:scale-[0.97] transition-transform flex items-center gap-2 whitespace-nowrap">
+            <i class="fas fa-search text-xs"></i>
+            <span>{{ tr('search_action', user.language) }}</span>
+        </button>
+    </form>
+</div>
+
+<!-- Промо-блок (динамические баннеры) -->
+<div class="mt-4 px-4">
+    {% if banners %}
+    <div class="flex overflow-x-auto gap-3 hide-scroll pb-1 -mx-4 px-4 snap-x snap-mandatory">
+        {% for banner in banners %}
+        {% set banner_product_count = banner.products | length %}
+        <div class="promo-card min-w-[85%] flex-shrink-0 snap-center {% if banner_product_count > 0 or banner.link %}cursor-pointer{% endif %}"
+             {% if banner_product_count > 0 %}onclick="window.location='/shop/banner/{{ banner.id }}'"{% elif banner.link %}onclick="window.location='{{ banner.link }}'"{% endif %}
+             {% if banner.image_path %}style="background-image:url('{{ banner.image_path }}');background-size:cover;background-position:center;"{% endif %}>
+            {% if banner.image_path %}<div class="promo-card-overlay"></div>{% endif %}
+            <div class="relative z-10">
+                {% if banner.subtitle %}<p class="text-[10px] uppercase tracking-[0.15em] text-[#C6A992] font-bold">{{ banner.subtitle }}</p>{% endif %}
+                <h2 class="text-xl font-extrabold text-white mt-1.5 leading-tight">{{ banner.title }}</h2>
+                {% if banner.description %}<p class="text-[13px] text-white/70 mt-1.5 leading-snug">{{ banner.description }}</p>{% endif %}
+            </div>
+            {% if banner.badge_text %}<div class="promo-badge absolute bottom-3.5 right-3.5 z-10">{{ banner.badge_text }}</div>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Категории (Горизонтальный скролл) -->
+<div id="categories" class="mt-5 pl-4 scroll-mt-28">
+    <div class="flex overflow-x-auto gap-2 hide-scroll pb-1 pr-4">
+        <button
+            class="chip-button active flex-shrink-0"
+            data-id="all" onclick="filterByCategory('all')">
+            {{ tr('all_categories', user.language) }}
+        </button>
+        {% for cat in categories %}
+        <button
+            class="chip-button flex-shrink-0"
+            data-id="{{ cat.id }}" onclick="filterByCategory('{{ cat.id }}')">
+            {{ cat.name_ru if user.language == 'ru' else cat.name_uz }}
+        </button>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Карусель товаров (Популярное) — ручная подборка из админки -->
+{% if popular_products %}
+<div class="mt-6 px-4">
+    <div class="flex justify-between items-baseline mb-3">
+        <h2 class="text-lg font-extrabold text-[#3E2310]">{{ tr('popular', user.language) }}</h2>
+        <span class="text-[11px] text-[#8C735F] font-semibold tracking-wider uppercase">{{ tr('bestsellers', user.language) }}</span>
+    </div>
+    <div class="flex overflow-x-auto gap-3 hide-scroll pb-4 -mx-4 px-4">
+        {% for product in popular_products %}
+        {% set product_name = product.name_ru if user.language == 'ru' else product.name_uz %}
+        {% set product_desc = product.description_ru if user.language == 'ru' else product.description_uz %}
+        <div class="carousel-card card-surface p-2.5 active:scale-[0.97] transition-transform duration-200 cursor-pointer"
+            onclick='openProductModal({{ product.id | tojson }}, {{ product_name | default("", true) | tojson }}, {{ product_desc | default("", true) | tojson }}, {{ product.price | tojson }}, {{ (product.discount_price if product.has_discount else none) | tojson }}, {{ product.image_path | default("", true) | tojson }}, {{ product.stock | tojson }}, {{ (product.sell_type or "piece") | tojson }}, {{ (product.pack_quantity or 0) | tojson }})'>
+            <div class="bg-[#F7F5F2] rounded-xl p-2 mb-2 aspect-square flex items-center justify-center overflow-hidden">
+                {% if product.image_path %}
+                <img src="{{ product.image_path }}" class="w-full h-full object-contain mix-blend-multiply">
+                {% else %}
+                <div class="text-[#D6C0AD] text-3xl opacity-40">
+                    <i class="fas fa-box"></i>
+                </div>
+                {% endif %}
+            </div>
+            <h3 class="text-[13px] font-bold text-[#3E2310] truncate leading-tight">{{ product_name }}</h3>
+            <div class="product-price mt-1">
+                {% if product.has_discount %}
+                <span class="product-price__current">{{ product.discount_price | number_format }} {{ tr('sum', user.language) }}</span>
+                <span class="product-price__old">{{ product.price | number_format }} {{ tr('sum', user.language) }}</span>
+                {% else %}
+                <span class="product-price__current product-price__current--regular">{{ product.price | number_format }} {{ tr('sum', user.language) }}</span>
+                {% endif %}
+            </div>
+            {% if product.sell_type == 'pack' and product.pack_quantity %}
+            <span class="text-[10px] text-[#B09B8B] font-semibold">{{ tr('per_pack', user.language) }} ({{ product.pack_quantity }} {{ tr('pack_pcs', user.language) }})</span>
+            {% endif %}
+            {% if product.has_discount %}
+            <span class="product-discount-pill mt-1">-{{ product.discount_percent }}%</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Сетка всех товаров -->
+<div class="px-4 pb-6">
+    <h2 class="text-lg font-extrabold text-[#3E2310] mb-3">{{ tr('catalog', user.language) }}</h2>
+    <div id="products-grid" class="grid grid-cols-2 gap-2.5">
+        {% include "shop/partials/product_list.html" %}
+    </div>
+    <div id="scroll-sentinel" class="h-4"></div>
+</div>
+
+<!-- BOTTOM SHEET MODAL -->
+<div id="product-modal" class="fixed inset-0 z-50 hidden" aria-modal="true">
+    <div class="modal-overlay" onclick="closeProductModal()"></div>
+    <div class="modal-sheet" id="modal-sheet">
+        <div class="sticky top-0 z-10 px-4 pt-4 pb-2">
+            <div class="relative flex justify-between items-center">
+                <button type="button" onclick="closeProductModal()"
+                    class="flex items-center justify-center py-2 px-4"
+                    aria-label="Закрыть карточку товара">
+                    <span class="w-12 h-1.5 bg-[#D6C0AD] rounded-full"></span>
+                </button>
+                <button type="button" onclick="closeProductModal()"
+                    class="w-11 h-11 rounded-2xl bg-white/95 text-[#3E2310] shadow-lg shadow-black/10 flex items-center justify-center active:scale-95 transition border border-[#E0CCB7]/50"
+                    aria-label="Закрыть карточку товара">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+        </div>
+        <div class="px-5 pb-6 pt-1" style="padding-bottom: calc(1.5rem + var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));">
+            <!-- Image carousel -->
+            <div class="relative bg-[#F7F5F2] rounded-2xl p-3 mb-5 aspect-[3/4] overflow-hidden">
+                <div id="modal-carousel" class="flex overflow-x-auto hide-scroll snap-x snap-mandatory h-full gap-2">
+                    <div id="modal-placeholder" class="w-full h-full flex items-center justify-center text-[#D6C0AD] text-5xl opacity-40 flex-shrink-0 snap-center">
+                        <i class="fas fa-box-open"></i>
+                    </div>
+                </div>
+                <div id="modal-dots" class="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5"></div>
+            </div>
+
+            <div class="mb-5">
+                <h2 id="modal-title" class="text-xl font-extrabold text-[#3E2310] mb-2 leading-tight"></h2>
+                <div class="flex items-center gap-2 mb-3 flex-wrap">
+                    <span id="modal-stock" class="px-2.5 py-1 bg-[#dcfce7] text-[#16a34a] text-[10px] font-bold uppercase rounded-lg tracking-wider">{{ tr('in_stock', user.language) }}</span>
+                    <button id="modal-notify-btn" class="hidden px-2.5 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold uppercase rounded-lg tracking-wider" onclick="toggleStockNotify()">
+                        <i class="fas fa-bell mr-1"></i>{{ tr('notify_me', user.language) }}
+                    </button>
+                </div>
+                <p id="modal-desc" class="text-[#3E2310] text-sm leading-relaxed"></p>
+            </div>
+
+            <div class="flex items-center justify-between pt-4 border-t border-[#E0CCB7]/40">
+                <div>
+                    <span id="modal-price-label" class="text-[10px] text-[#8C735F] font-bold uppercase tracking-wider">{{ tr('price_per_unit', user.language) }}</span>
+                    <p id="modal-price" class="product-price product-price--modal mt-0.5"></p>
+                    <span id="modal-pack-info" class="text-[10px] text-[#B09B8B] font-semibold hidden"></span>
+                </div>
+                <button id="modal-add-btn" class="btn-primary active:scale-95 transition-transform">
+                    <i class="fas fa-shopping-cart text-xs"></i>
+                    <span>{{ tr('add_to_cart', user.language) }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Sync JS pagination with server-rendered page 1
+    // Must wait for DOMContentLoaded because main.js (which defines _filterState) loads after this script
+    document.addEventListener('DOMContentLoaded', function() {
+        _filterState.page = 2;
+        _filterState.hasMore = {{ has_more | tojson }};
+    });
+
+    let _currentProductId = null;
+    let _carouselScrollHandler = null;
+
+    async function openProductModal(id, name, desc, price, discountPrice, image, stock, sellType, packQty) {
+        _currentProductId = id;
+        stock = parseInt(stock) || 0;
+        sellType = sellType || 'piece';
+        packQty = parseInt(packQty) || 0;
+        const modal = document.getElementById('product-modal');
+        const sheet = document.getElementById('modal-sheet');
+        const carousel = document.getElementById('modal-carousel');
+        const dotsEl = document.getElementById('modal-dots');
+        const placeholder = document.getElementById('modal-placeholder');
+        const notifyBtn = document.getElementById('modal-notify-btn');
+
+        // Set basic data immediately
+        document.getElementById('modal-title').innerText = name;
+        document.getElementById('modal-desc').innerText = desc || T.no_description;
+        document.getElementById('modal-price').innerHTML = productPriceMarkup(price, discountPrice, 'modal');
+
+        // Pack info
+        const priceLabel = document.getElementById('modal-price-label');
+        const packInfo = document.getElementById('modal-pack-info');
+        if (sellType === 'pack' && packQty > 0) {
+            priceLabel.innerText = T.price_per_pack;
+            packInfo.innerText = packQty + ' ' + T.pack_pcs + ' / ' + T.pack_label;
+            packInfo.classList.remove('hidden');
+        } else {
+            priceLabel.innerText = T.price_per_unit;
+            packInfo.classList.add('hidden');
+        }
+
+        let stockEl = document.getElementById('modal-stock');
+        const addBtn = document.getElementById('modal-add-btn');
+
+        // Reset carousel
+        carousel.innerHTML = '';
+        dotsEl.innerHTML = '';
+        notifyBtn.classList.add('hidden');
+
+        // Show basic image first
+        if (image && image !== 'None' && image !== '') {
+            carousel.innerHTML = `<img src="${image}" class="w-full h-full object-contain mix-blend-multiply flex-shrink-0 snap-center">`;
+        } else {
+            carousel.innerHTML = '<div class="w-full h-full flex items-center justify-center text-[#D6C0AD] text-5xl opacity-40 flex-shrink-0 snap-center"><i class="fas fa-box-open"></i></div>';
+        }
+
+        if (stock > 0) {
+            const stockUnit = (sellType === 'pack') ? (' ' + T.pack_unit_short) : '';
+            stockEl.innerText = T.in_stock_n + stock + stockUnit;
+            stockEl.className = "px-2.5 py-1 bg-[#dcfce7] text-[#16a34a] text-[10px] font-bold uppercase rounded-lg tracking-wider";
+            addBtn.disabled = false;
+            addBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            stockEl.innerText = T.out_of_stock;
+            stockEl.className = "px-2.5 py-1 bg-red-50 text-red-500 text-[10px] font-bold uppercase rounded-lg tracking-wider";
+            addBtn.disabled = true;
+            addBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        addBtn.onclick = () => { if (stock > 0) { addToCart(id); closeProductModal(); } };
+
+        modal.classList.remove('hidden');
+        openModalLock();
+        requestAnimationFrame(() => { requestAnimationFrame(() => { sheet.classList.add('open'); }); });
+        tg.HapticFeedback.impactOccurred('medium');
+
+        // Fetch full product details with multi-photo
+        try {
+            const res = await fetch(`/shop/api/product/${id}`);
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('modal-price').innerHTML = productPriceMarkup(data.regular_price || data.price, data.discount_price, 'modal');
+                const mediaList = data.media || (data.images || []).map(src => ({src, type: 'image'}));
+                if (mediaList.length > 0) {
+                    carousel.innerHTML = mediaList.map((m, mi) =>
+                        m.type === 'video'
+                            ? `<div class="relative w-full h-full flex-shrink-0 snap-center flex items-center justify-center" data-video-wrap="${mi}">
+                                <video src="${m.src}" ${m.poster ? `poster="${m.poster}"` : ''} class="w-full h-full object-contain" playsinline preload="metadata"></video>
+                                <button onclick="playModalVideo(this)" class="absolute inset-0 flex items-center justify-center bg-black/20 transition">
+                                    <span class="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                                        <i class="fas fa-play text-[#3E2310] text-xl ml-1"></i>
+                                    </span>
+                                </button>
+                               </div>`
+                            : `<img src="${m.src}" class="w-full h-full object-contain mix-blend-multiply flex-shrink-0 snap-center">`
+                    ).join('');
+                    if (mediaList.length > 1) {
+                        dotsEl.innerHTML = mediaList.map((_, i) =>
+                            `<span class="w-1.5 h-1.5 rounded-full ${i === 0 ? 'bg-[#3E2310]' : 'bg-[#D6C0AD]'}"></span>`
+                        ).join('');
+                        if (_carouselScrollHandler) carousel.removeEventListener('scroll', _carouselScrollHandler);
+                        _carouselScrollHandler = () => {
+                            const idx = Math.round(carousel.scrollLeft / carousel.offsetWidth);
+                            dotsEl.querySelectorAll('span').forEach((d, i) => {
+                                d.className = `w-1.5 h-1.5 rounded-full ${i === idx ? 'bg-[#3E2310]' : 'bg-[#D6C0AD]'}`;
+                            });
+                        };
+                        carousel.addEventListener('scroll', _carouselScrollHandler);
+                    }
+                }
+                // Stock notify button
+                if (data.stock <= 0) {
+                    notifyBtn.classList.remove('hidden');
+                    notifyBtn.innerHTML = data.stock_subscribed
+                        ? '<i class="fas fa-bell-slash mr-1"></i>' + T.unsubscribe
+                        : '<i class="fas fa-bell mr-1"></i>' + T.notify_me;
+                }
+            }
+        } catch(e) {}
+    }
+
+    async function toggleStockNotify() {
+        if (!_currentProductId) return;
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        try {
+            const res = await fetch(`/shop/api/stock-notify/${_currentProductId}`, {
+                method: 'POST', headers: { 'X-CSRF-Token': csrfToken }
+            });
+            const data = await res.json();
+            const btn = document.getElementById('modal-notify-btn');
+            if (data.subscribed) {
+                btn.innerHTML = '<i class="fas fa-bell-slash mr-1"></i>' + T.unsubscribe;
+                if (typeof showToast === 'function') showToast(T.notify_subscribed, 'success');
+            } else {
+                btn.innerHTML = '<i class="fas fa-bell mr-1"></i>' + T.notify_me;
+                if (typeof showToast === 'function') showToast(T.notify_unsubscribed, 'info');
+            }
+        } catch(e) {}
+    }
+
+    function closeProductModal() {
+        const modal = document.getElementById('product-modal');
+        const sheet = document.getElementById('modal-sheet');
+        sheet.classList.remove('open');
+        setTimeout(() => { modal.classList.add('hidden'); closeModalLock(); }, 300);
+    }
+</script>
+{% endblock %}

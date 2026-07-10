@@ -1,0 +1,144 @@
+{% extends "admin/base.html" %}
+
+{% block header %}Рассылка{% endblock %}
+
+{% block content %}
+{% if message %}
+<div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-5 text-sm font-medium flex items-center gap-2">
+    <i class="fas fa-check-circle text-green-500"></i> {{ message }}
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+    <!-- Редактор -->
+    <div class="glass-card p-3 md:p-6">
+        <h4 class="font-bold text-[#3E2310] mb-3 md:mb-4 text-sm md:text-base">Редактор сообщения</h4>
+        <form id="mailingForm" action="/admin/mailing/send" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="text" id="hiddenText">
+
+            <div class="mb-4">
+                <label class="block text-[#8C735F] text-xs font-bold uppercase tracking-wider mb-1.5">Текст сообщения</label>
+                <div id="quill-toolbar">
+                    <button class="ql-bold" title="Жирный"></button>
+                    <button class="ql-italic" title="Курсив"></button>
+                    <button class="ql-underline" title="Подчеркнутый"></button>
+                    <button class="ql-strike" title="Зачеркнутый"></button>
+                    <button class="ql-link" title="Ссылка"></button>
+                    <button class="ql-clean" title="Очистить форматирование"></button>
+                </div>
+                <div id="quill-editor" style="min-height:150px;"></div>
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-[#8C735F] text-xs font-bold uppercase tracking-wider mb-1.5">Картинка (1 фото, опционально)</label>
+                <div class="relative">
+                    <input name="image" type="file" accept="image/*" id="imageInput"
+                        data-admin-image-cropper data-crop-title="Картинка рассылки"
+                        data-crop-width="1200" data-crop-height="900"
+                        class="block w-full text-sm text-[#8C735F] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-[#3E2310]/10 file:text-[#3E2310] hover:file:bg-[#3E2310]/15 file:cursor-pointer file:transition">
+                </div>
+                <div id="imagePreviewWrap" class="mt-3 hidden">
+                    <div class="relative inline-block">
+                        <img id="imagePreview" class="max-h-48 rounded-xl border border-[#E0CCB7] shadow-sm">
+                        <button type="button" onclick="clearImage()" class="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full text-xs font-bold shadow hover:bg-red-600">&times;</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="admin-btn-accent" type="submit">
+                <i class="fas fa-paper-plane mr-1.5"></i> Начать рассылку
+            </button>
+        </form>
+    </div>
+
+    <!-- Превью -->
+    <div class="glass-card p-3 md:p-6">
+        <h4 class="font-bold text-[#3E2310] mb-3 md:mb-4 text-sm md:text-base">Предпросмотр (Telegram)</h4>
+        <div class="bg-[#e7ebee] rounded-2xl p-4 min-h-[300px]">
+            <div class="max-w-[85%] ml-auto">
+                <div id="previewImageWrap" class="hidden mb-1">
+                    <img id="previewImage" class="w-full rounded-t-2xl max-h-60 object-cover">
+                </div>
+                <div id="previewBubble" class="bg-[#effdde] rounded-2xl px-3 py-2 shadow-sm text-sm text-[#1a1a1a] leading-relaxed"
+                     style="word-break:break-word;">
+                    <span class="text-[#8C735F] italic text-xs">Начните вводить текст...</span>
+                </div>
+                <div class="text-right text-[10px] text-[#8C735F] mt-0.5 mr-1">сейчас ✓✓</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<style>
+    #quill-editor { background: var(--admin-surface); border: 1.5px solid var(--admin-border); border-top: none; border-radius: 0 0 0.75rem 0.75rem; font-size: 0.875rem; color: var(--admin-ink); }
+    #quill-toolbar { background: var(--admin-surface); border: 1.5px solid var(--admin-border); border-radius: 0.75rem 0.75rem 0 0; }
+    #quill-editor .ql-editor { min-height: 150px; }
+    .ql-toolbar.ql-snow { border-color: var(--admin-border) !important; }
+    .ql-container.ql-snow { border-color: var(--admin-border) !important; }
+</style>
+<script>
+    const quill = new Quill('#quill-editor', {
+        theme: 'snow',
+        modules: { toolbar: '#quill-toolbar' },
+        placeholder: 'Введите текст акции...'
+    });
+
+    function quillToTelegramHTML() {
+        let html = quill.root.innerHTML;
+        html = html.replace(/<p><br><\/p>/g, '\n');
+        html = html.replace(/<p>/g, '').replace(/<\/p>/g, '\n');
+        html = html.replace(/<strong>/g, '<b>').replace(/<\/strong>/g, '</b>');
+        html = html.replace(/<em>/g, '<i>').replace(/<\/em>/g, '</i>');
+        html = html.replace(/<u>/g, '<u>').replace(/<\/u>/g, '</u>');
+        html = html.replace(/<s>/g, '<s>').replace(/<\/s>/g, '</s>');
+        html = html.replace(/<a\s+href="([^"]*)"[^>]*>/g, '<a href="$1">');
+        html = html.replace(/<br>/g, '\n');
+        html = html.replace(/<[^biusa\/][^>]*>/g, '');
+        html = html.replace(/\n+$/, '');
+        return html.trim();
+    }
+
+    quill.on('text-change', () => {
+        const tgHTML = quillToTelegramHTML();
+        const bubble = document.getElementById('previewBubble');
+        if (tgHTML && quill.getText().trim()) {
+            bubble.innerHTML = tgHTML.replace(/\n/g, '<br>');
+        } else {
+            bubble.innerHTML = '<span class="text-[#8C735F] italic text-xs">Начните вводить текст...</span>';
+        }
+    });
+
+    document.getElementById('mailingForm').addEventListener('submit', function(e) {
+        const tgHTML = quillToTelegramHTML();
+        if (!quill.getText().trim()) {
+            e.preventDefault();
+            alert('Введите текст сообщения');
+            return;
+        }
+        document.getElementById('hiddenText').value = tgHTML;
+    });
+
+    // Image preview
+    document.getElementById('imageInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) { clearImage(); return; }
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            document.getElementById('imagePreview').src = ev.target.result;
+            document.getElementById('imagePreviewWrap').classList.remove('hidden');
+            document.getElementById('previewImage').src = ev.target.result;
+            document.getElementById('previewImageWrap').classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    });
+
+    function clearImage() {
+        document.getElementById('imageInput').value = '';
+        document.getElementById('imagePreviewWrap').classList.add('hidden');
+        document.getElementById('previewImageWrap').classList.add('hidden');
+    }
+</script>
+{% endblock %}

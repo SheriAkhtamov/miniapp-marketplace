@@ -1,0 +1,75 @@
+{% for product in products %}
+{% set product_name = product.name_ru if user.language == 'ru' else product.name_uz %}
+{% set product_desc = product.description_ru if user.language == 'ru' else product.description_uz %}
+<div class="card-surface p-2.5 relative group active:scale-[0.98] transition-all duration-200 flex flex-col">
+    <!-- Like Button -->
+    <button onclick="toggleFavorite(this, {{ product.id }}); event.stopPropagation();"
+        class="fav-btn absolute top-2 right-2">
+        <i class="{% if favorite_ids is defined and product.id in favorite_ids %}fas text-[#A33B20]{% else %}far{% endif %} fa-heart text-sm"></i>
+    </button>
+
+    {% if product.stock <= 5 and product.stock > 0 %}
+    <span class="absolute top-2 left-2 bg-amber-50 text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded-md z-10">
+        {{ tr('low_stock', user.language) }}
+    </span>
+    {% elif product.stock <= 0 %}
+    <span class="absolute top-2 left-2 bg-red-50 text-red-500 text-[10px] font-bold px-1.5 py-0.5 rounded-md z-10">
+        {{ tr('no_stock_short', user.language) }}
+    </span>
+    {% endif %}
+
+    <!-- Clickable Area -->
+    <div class="flex flex-col flex-1"
+        data-product-open-id="{{ product.id }}"
+        onclick='openProductModal({{ product.id | tojson }}, {{ product_name | default("", true) | tojson }}, {{ product_desc | default("", true) | tojson }}, {{ product.price | tojson }}, {{ (product.discount_price if product.has_discount else none) | tojson }}, {{ product.image_path | default("", true) | tojson }}, {{ product.stock | tojson }}, {{ (product.sell_type or "piece") | tojson }}, {{ (product.pack_quantity or 0) | tojson }})'>
+        <div class="bg-[#F7F5F2] rounded-xl p-2 mb-2 aspect-square flex items-center justify-center overflow-hidden">
+            {% if product.image_path %}
+                <img src="{{ product.image_path }}" class="w-full h-full object-contain mix-blend-multiply">
+            {% else %}
+                <div class="text-[#D6C0AD] text-3xl opacity-40">
+                    <i class="fas fa-box"></i>
+                </div>
+            {% endif %}
+        </div>
+
+        <h3 class="text-[13px] font-bold text-[#3E2310] leading-tight line-clamp-2 mb-auto min-h-[2.25rem]">
+            {{ product_name }}
+        </h3>
+
+        <div class="flex justify-between items-end mt-2 pt-2 border-t border-[#F2E8DC]/60">
+            <div class="min-w-0">
+                <div class="product-price">
+                    {% if product.has_discount %}
+                    <span class="product-price__current">{{ product.discount_price | number_format }} {{ tr('sum', user.language) }}</span>
+                    <span class="product-price__old">{{ product.price | number_format }} {{ tr('sum', user.language) }}</span>
+                    {% else %}
+                    <span class="product-price__current product-price__current--regular">{{ product.price | number_format }} {{ tr('sum', user.language) }}</span>
+                    {% endif %}
+                </div>
+                {% if product.sell_type == 'pack' and product.pack_quantity %}
+                <span class="text-[10px] text-[#B09B8B] font-semibold">{{ tr('per_pack', user.language) }} ({{ product.pack_quantity }} {{ tr('pack_pcs', user.language) }})</span>
+                {% else %}
+                <span class="text-[10px] text-[#B09B8B] font-semibold">{{ tr('per_unit', user.language) }}</span>
+                {% endif %}
+                {% if product.has_discount %}
+                <span class="product-discount-pill mt-1">-{{ product.discount_percent }}%</span>
+                {% endif %}
+            </div>
+
+            {% if product.stock > 0 %}
+                <button onclick="addToCart({{ product.id }}); event.stopPropagation();"
+                    class="add-cart-btn">
+                    <i class="fas fa-plus text-[11px]"></i>
+                </button>
+            {% else %}
+                <span class="text-[10px] font-bold text-red-400 uppercase text-right leading-tight">{{ tr('not_available', user.language) | replace('\n', '<br>') | safe }}</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="col-span-2 text-center py-16">
+    <div class="text-4xl mb-3 opacity-40">📦</div>
+    <p class="text-[#8C735F] font-medium text-sm">{{ tr('nothing_yet', user.language) }}</p>
+</div>
+{% endfor %}

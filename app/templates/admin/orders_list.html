@@ -1,0 +1,283 @@
+{% extends "admin/base.html" %}
+
+{% block header %}
+Список заказов
+<a href="/admin/orders/new" class="ml-2 inline-flex items-center gap-1.5 text-xs font-bold bg-[#6B3F1E] text-white px-3 py-1.5 rounded-xl hover:bg-[#543116] transition shadow-sm">
+    <i class="fas fa-plus"></i> <span class="hidden sm:inline">Создать заказ</span><span class="sm:hidden">Создать</span>
+</a>
+<a href="/admin/orders/export" class="ml-1 sm:ml-2 inline-flex items-center gap-1.5 text-xs font-bold bg-[#3E2310]/10 text-[#3E2310] px-3 py-1.5 rounded-xl hover:bg-[#3E2310]/20 transition">
+    <i class="fas fa-file-excel"></i> <span class="hidden sm:inline">Экспорт Excel</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Macros for status/payment badges (reused in table & cards) -->
+{% macro status_badge(s) %}
+{% if s == 'new' %}<span class="bg-blue-100 text-blue-700 py-0.5 px-2.5 rounded-full text-xs font-bold border border-blue-200">Новый</span>
+{% elif s == 'paid' %}<span class="bg-emerald-100 text-emerald-700 py-0.5 px-2.5 rounded-full text-xs font-bold border border-emerald-200">Оплачен</span>
+{% elif s == 'delivery' %}<span class="bg-yellow-100 text-yellow-700 py-0.5 px-2.5 rounded-full text-xs font-bold border border-yellow-200">В пути</span>
+{% elif s == 'done' %}<span class="bg-green-100 text-green-700 py-0.5 px-2.5 rounded-full text-xs font-bold border border-green-200">Выполнен</span>
+{% elif s == 'cancelled' %}<span class="bg-red-100 text-red-700 py-0.5 px-2.5 rounded-full text-xs font-bold border border-red-200">Отменен</span>
+{% else %}<span class="bg-gray-100 text-gray-700 py-0.5 px-2.5 rounded-full text-xs font-bold">{{ s }}</span>
+{% endif %}
+{% endmacro %}
+
+{% macro payment_badge(p) %}
+{% if p == 'cash' %}<span class="bg-amber-100 text-amber-700 py-0.5 px-2 rounded-full text-xs font-bold">Наличные</span>
+{% elif p == 'click' %}<span class="bg-indigo-100 text-indigo-700 py-0.5 px-2 rounded-full text-xs font-bold">Click</span>
+{% elif p == 'card_transfer' %}<span class="bg-sky-100 text-sky-700 py-0.5 px-2 rounded-full text-xs font-bold">Перевод на карту</span>
+{% else %}<span class="bg-emerald-100 text-emerald-700 py-0.5 px-2 rounded-full text-xs font-bold">Payme</span>
+{% endif %}
+{% endmacro %}
+
+{% macro client_name(order) %}
+{% if order.user %}{{ order.user.username }}{% elif order.customer_name %}{{ order.customer_name }} <span class="inline-block ml-1 bg-orange-100 text-orange-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full align-middle">ручной</span>{% else %}Удалён{% endif %}
+{% endmacro %}
+
+{% macro attention_mark(order) %}
+{% if order.status == 'new' and order.admin_unread %}
+<span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-extrabold leading-none text-white" title="Новый непросмотренный заказ">!</span>
+{% endif %}
+{% endmacro %}
+
+<div class="mb-4 md:mb-6 grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+    <div class="glass-card rounded-2xl p-3 md:p-4">
+        <p class="text-[10px] md:text-xs uppercase text-[#8C735F] font-bold mb-1 tracking-wider">Всего заказов</p>
+        <p class="text-xl md:text-2xl font-bold text-[#3E2310]">{{ status_counts.values() | sum }}</p>
+    </div>
+    <div class="glass-card rounded-2xl p-3 md:p-4">
+        <p class="text-[10px] md:text-xs uppercase text-[#8C735F] font-bold mb-1 tracking-wider">Выручка</p>
+        <p class="text-lg md:text-2xl font-bold text-[#3E2310] tabular-nums">{{ revenue_total | number_format }} <span class="text-xs md:text-sm text-[#8C735F]">сум</span></p>
+    </div>
+    <div class="glass-card rounded-2xl p-3 md:p-4 flex flex-wrap gap-1.5 md:gap-2 items-center col-span-2 lg:col-span-1">
+        <span class="chip bg-blue-100 text-blue-700">Новые: {{ status_counts.get('new', 0) }}</span>
+        <span class="chip bg-yellow-100 text-yellow-700">В пути: {{ status_counts.get('delivery', 0) }}</span>
+        <span class="chip bg-green-100 text-green-700">Готово: {{ status_counts.get('done', 0) }}</span>
+        <span class="chip bg-gray-100 text-gray-600">Оплачено: {{ status_counts.get('paid', 0) }}</span>
+    </div>
+</div>
+
+<div class="glass-card rounded-2xl p-3 md:p-4 mb-4 md:mb-6">
+    <form method="get" class="flex flex-col gap-2 md:gap-3 xl:flex-row xl:items-center">
+        <input type="text" name="q" value="{{ filters.q }}" placeholder="Поиск по ID, имени или телефону"
+            class="flex-1 bg-white border border-[#E0CCB7] rounded-xl px-3 md:px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6B3F1E]/20">
+        <div class="grid grid-cols-3 gap-2 md:flex md:gap-3">
+            <select name="status"
+                class="bg-white border border-[#E0CCB7] rounded-xl px-2 md:px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-[#6B3F1E]/20">
+                <option value="all" {% if filters.status == 'all' %}selected{% endif %}>Все статусы</option>
+                <option value="new" {% if filters.status == 'new' %}selected{% endif %}>Новые</option>
+                <option value="paid" {% if filters.status == 'paid' %}selected{% endif %}>Оплачены</option>
+                <option value="delivery" {% if filters.status == 'delivery' %}selected{% endif %}>В пути</option>
+                <option value="done" {% if filters.status == 'done' %}selected{% endif %}>Готово</option>
+                <option value="cancelled" {% if filters.status == 'cancelled' %}selected{% endif %}>Отменены</option>
+            </select>
+            <select name="payment"
+                class="bg-white border border-[#E0CCB7] rounded-xl px-2 md:px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-[#6B3F1E]/20">
+                <option value="all" {% if filters.payment == 'all' %}selected{% endif %}>Все оплаты</option>
+                <option value="cash" {% if filters.payment == 'cash' %}selected{% endif %}>Наличные</option>
+                <option value="card" {% if filters.payment == 'card' %}selected{% endif %}>Payme</option>
+                <option value="click" {% if filters.payment == 'click' %}selected{% endif %}>Click</option>
+                <option value="card_transfer" {% if filters.payment == 'card_transfer' %}selected{% endif %}>Перевод на карту</option>
+            </select>
+            <select name="order_type"
+                class="bg-white border border-[#E0CCB7] rounded-xl px-2 md:px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-[#6B3F1E]/20">
+                <option value="all" {% if filters.order_type == 'all' %}selected{% endif %}>Все типы</option>
+                <option value="product" {% if filters.order_type == 'product' %}selected{% endif %}>Товары</option>
+                <option value="debt_repayment" {% if filters.order_type == 'debt_repayment' %}selected{% endif %}>Долг</option>
+            </select>
+        </div>
+        <div class="flex gap-2 items-center">
+            <button type="submit"
+                class="flex-1 md:flex-none bg-[#3E2310] text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-[#543116] transition">
+                Применить
+            </button>
+            <a href="/admin/orders"
+                class="text-sm font-semibold text-[#6B3F1E] hover:text-[#543116]">Сбросить</a>
+        </div>
+    </form>
+</div>
+
+<!-- ====== MOBILE CARDS VIEW ====== -->
+<div class="mobile-cards space-y-3 my-4" style="display:none">
+    {% for order in orders %}
+    <div class="glass-card rounded-xl p-3.5">
+        <div class="flex items-start justify-between mb-2">
+            <div>
+                <a href="/admin/orders/{{ order.id }}" class="font-bold text-[#6B3F1E] text-sm">#{{ order.id }}</a>
+                <span class="text-xs text-[#8C735F] ml-1.5">{{ order.created_at | datetime_uz }}</span>
+            </div>
+            {{ status_badge(order.status) }}
+        </div>
+        <div class="flex items-center justify-between mb-2.5">
+            <div class="text-sm">
+                <div class="font-bold text-[#3E2310] flex items-center gap-2 flex-wrap">
+                    {{ client_name(order) }}
+                    {{ attention_mark(order) }}
+                </div>
+                <div class="text-xs text-[#8C735F]">{{ order.contact_phone or (order.user.phone if order.user else '-') }}</div>
+            </div>
+            <div class="text-right">
+                <div class="font-bold text-[#3E2310] text-sm tabular-nums">{{ order.total_amount | number_format }} сум</div>
+                <div class="mt-0.5">{{ payment_badge(order.payment_method) }}</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 pt-2 border-t border-[#E0CCB7]/30">
+            <a href="/admin/orders/{{ order.id }}"
+                class="flex-1 text-center bg-[#F2E8DC] hover:bg-[#D6C0AD] text-[#3E2310] py-2 rounded-xl text-xs font-bold transition">
+                <i class="fas fa-eye mr-1"></i> Подробнее
+            </a>
+            {% if order.status != 'cancelled' and order.status != 'done' %}
+            <form action="/admin/orders/{{ order.id }}/status" method="POST" class="flex items-center gap-1.5">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <select name="status" class="bg-white border border-[#E0CCB7] rounded-lg px-1.5 py-1.5 text-xs focus:outline-none">
+                    <option value="new" {% if order.status == 'new' %}selected{% endif %}>Новый</option>
+                    <option value="paid" {% if order.status == 'paid' %}selected{% endif %}>Оплачен</option>
+                    <option value="delivery" {% if order.status == 'delivery' %}selected{% endif %}>В пути</option>
+                    <option value="done" {% if order.status == 'done' %}selected{% endif %}>Готово</option>
+                </select>
+                <button type="submit" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#3E2310] text-white hover:bg-[#543116]">OK</button>
+            </form>
+            {% endif %}
+            {% if order.status == 'cancelled' and order.payment_method == 'cash' and order.order_type == 'product' %}
+            <form action="/admin/orders/{{ order.id }}/restore" method="POST"
+                onsubmit="return confirm('Восстановить заказ и снова зарезервировать товары на складе?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700">
+                    Восстановить
+                </button>
+            </form>
+            {% endif %}
+            {% if user.role == 'superadmin' and not order.user %}
+            <form action="/admin/orders/{{ order.id }}/delete" method="POST"
+                onsubmit="return confirm('Удалить ручной заказ #{{ order.id }}? Это действие нельзя отменить.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit"
+                    class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-red-500 text-white hover:bg-red-600">
+                    Удалить
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="glass-card rounded-xl p-6 text-center text-[#8C735F] text-sm">
+        Заказы не найдены по выбранным фильтрам.
+    </div>
+    {% endfor %}
+</div>
+
+<!-- ====== DESKTOP TABLE VIEW ====== -->
+<div class="bg-white shadow-coffee rounded-2xl overflow-hidden glass-card my-4 md:my-6 responsive-table">
+    <div class="overflow-x-auto">
+        <table class="min-w-full table-auto">
+            <thead>
+                <tr class="bg-[#EFE6DB] text-[#3E2310] uppercase text-sm leading-normal font-bold">
+                    <th class="py-4 px-6 text-left">ID</th>
+                    <th class="py-4 px-6 text-left">Клиент</th>
+                    <th class="py-4 px-6 text-center">Дата</th>
+                    <th class="py-4 px-6 text-center">Тип</th>
+                    <th class="py-4 px-6 text-center">Оплата</th>
+                    <th class="py-4 px-6 text-center">Сумма</th>
+                    <th class="py-4 px-6 text-center">Статус</th>
+                    <th class="py-4 px-6 text-center">Действия</th>
+                </tr>
+            </thead>
+            <tbody class="text-[#3E2310] text-sm font-medium">
+                {% for order in orders %}
+                <tr class="border-b border-[#EFE6DB] hover:bg-[#F9F4EF] transition duration-200">
+                    <td class="py-4 px-6 text-left font-bold text-[#6B3F1E]">#{{ order.id }}</td>
+                    <td class="py-4 px-6 text-left">
+                        <div class="font-bold flex items-center gap-2 flex-wrap">
+                            {{ client_name(order) }}
+                            {{ attention_mark(order) }}
+                        </div>
+                        <span class="text-xs text-[#8C735F]">{{ order.contact_phone or (order.user.phone if order.user else '-') }}</span>
+                    </td>
+                    <td class="py-4 px-6 text-center">
+                        {{ order.created_at | datetime_uz }}
+                    </td>
+                    <td class="py-4 px-6 text-center">
+                        {% if order.order_type == 'debt_repayment' %}
+                        <span class="bg-purple-100 text-purple-700 py-1 px-3 rounded-full text-xs font-bold">Долг</span>
+                        {% else %}
+                        <span class="bg-slate-100 text-slate-600 py-1 px-3 rounded-full text-xs font-bold">Товары</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-4 px-6 text-center">{{ payment_badge(order.payment_method) }}</td>
+                    <td class="py-4 px-6 text-center font-bold text-[#3E2310]">
+                        {{ order.total_amount | number_format }} сум
+                    </td>
+                    <td class="py-4 px-6 text-center">{{ status_badge(order.status) }}</td>
+                    <td class="py-4 px-6 text-center">
+                        <div class="flex flex-col items-center gap-2">
+                            <a href="/admin/orders/{{ order.id }}"
+                                class="bg-[#F2E8DC] hover:bg-[#D6C0AD] text-[#3E2310] py-2 px-4 rounded-xl text-xs font-bold transition duration-200 inline-flex items-center">
+                                <i class="fas fa-eye mr-2"></i> Подробнее
+                            </a>
+                            {% if order.status != 'cancelled' %}
+                            <form action="/admin/orders/{{ order.id }}/status" method="POST" class="flex gap-2 items-center">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <select name="status"
+                                    class="bg-white border border-[#E0CCB7] rounded-lg px-2 py-1 text-xs focus:outline-none">
+                                    <option value="new" {% if order.status == 'new' %}selected{% endif %}>Новый</option>
+                                    <option value="paid" {% if order.status == 'paid' %}selected{% endif %}>Оплачен</option>
+                                    <option value="delivery" {% if order.status == 'delivery' %}selected{% endif %}>В пути</option>
+                                    <option value="done" {% if order.status == 'done' %}selected{% endif %}>Готово</option>
+                                </select>
+                                <button type="submit"
+                                    class="px-3 py-1 rounded-lg text-xs font-bold bg-[#3E2310] text-white hover:bg-[#543116]">
+                                    Обновить
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% if order.status == 'cancelled' and order.payment_method == 'cash' and order.order_type == 'product' %}
+                            <form action="/admin/orders/{{ order.id }}/restore" method="POST"
+                                onsubmit="return confirm('Восстановить заказ и снова зарезервировать товары на складе?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit"
+                                    class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-xl text-xs font-bold transition">
+                                    ↩️ Восстановить
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% if user.role == 'superadmin' and not order.user %}
+                            <form action="/admin/orders/{{ order.id }}/delete" method="POST"
+                                onsubmit="return confirm('Удалить ручной заказ #{{ order.id }}? Это действие нельзя отменить.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit"
+                                    class="px-3 py-1 rounded-lg text-xs font-bold bg-red-500 text-white hover:bg-red-600">
+                                    Удалить
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="py-6 px-6 text-center text-[#8C735F]">
+                        Заказы не найдены по выбранным фильтрам.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="flex justify-center my-4">
+    <div class="flex space-x-2">
+        {% set query_string = "q=" ~ (filters.q | urlencode) ~ "&status=" ~ filters.status ~ "&payment=" ~ filters.payment ~ "&order_type=" ~ filters.order_type %}
+        {% if page > 1 %}
+        <a href="?page={{ page - 1 }}&{{ query_string }}" class="px-3 py-1.5 bg-[#E0CCB7]/40 rounded-lg hover:bg-[#E0CCB7]/60 text-[#3E2310] font-bold text-sm transition">← Назад</a>
+        {% endif %}
+        <span class="px-3 py-1.5 font-bold text-sm">{{ page }} / {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a href="?page={{ page + 1 }}&{{ query_string }}" class="px-3 py-1.5 bg-[#E0CCB7]/40 rounded-lg hover:bg-[#E0CCB7]/60 text-[#3E2310] font-bold text-sm transition">Вперед →</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

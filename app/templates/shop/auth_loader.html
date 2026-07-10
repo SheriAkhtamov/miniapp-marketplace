@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Loading...</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        (function() {
+            var tg = window.Telegram.WebApp;
+            tg.ready();
+            tg.expand();
+            try { tg.disableVerticalSwipes(); } catch(e) {}
+            try {
+                tg.setHeaderColor('#f2e8dc');
+                tg.setBackgroundColor('#f2e8dc');
+            } catch(e) {}
+            var h = tg.viewportStableHeight || window.innerHeight;
+            document.documentElement.style.setProperty('--tg-vh', h + 'px');
+        })();
+    </script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: #F2E8DC;
+            background-image:
+                radial-gradient(circle at 12% 8%, rgba(198, 169, 146, 0.25), transparent 45%),
+                radial-gradient(circle at 88% 2%, rgba(62, 35, 16, 0.06), transparent 40%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            height: var(--tg-vh, 100vh); font-family: 'Manrope', sans-serif; color: #3E2310;
+        }
+        .loader {
+            width: 36px; height: 36px; border: 3px solid #E0CCB7;
+            border-top-color: #3E2310; border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin-bottom: 16px;
+        }
+        .brand { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; }
+        .subtitle { font-size: 0.75rem; color: #8C735F; font-weight: 500; }
+        .error { text-align: center; padding: 24px; display: none; }
+        .error p { font-size: 0.875rem; color: #8C735F; margin-bottom: 4px; }
+        .error button {
+            margin-top: 16px; padding: 10px 24px; background: #3E2310; color: #fff;
+            border: none; border-radius: 12px; font-family: 'Manrope', sans-serif;
+            font-weight: 700; font-size: 0.875rem; cursor: pointer;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="loader-wrap" style="text-align:center;">
+        <div class="loader" style="margin:0 auto 16px;"></div>
+        <img src="/static/img/logo.png" alt="UNICOM" style="height:32px;object-fit:contain;margin:0 auto;">
+        <div class="subtitle">Yuklanmoqda... / Загрузка...</div>
+    </div>
+    <div id="error-msg" class="error">
+        <p>Xatolik / Ошибка</p>
+        <p>Botni qayta ishga tushiring / Перезапустите бота</p>
+        <button onclick="window.location.reload()">Qayta / Повторить</button>
+    </div>
+
+    <script>
+        var tg = window.Telegram.WebApp;
+        async function authorize() {
+            try {
+                if (!tg.initData) {
+                    throw new Error("No initData");
+                }
+
+                const response = await fetch('/shop/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'initData=' + encodeURIComponent(tg.initData)
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    throw new Error("Auth failed");
+                }
+            } catch (e) {
+                document.getElementById('loader-wrap').style.display = 'none';
+                document.getElementById('error-msg').style.display = 'block';
+                console.error(e);
+            }
+        }
+
+        authorize();
+    </script>
+</body>
+</html>

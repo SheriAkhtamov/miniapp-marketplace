@@ -1,0 +1,337 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Бэкап базы данных{% endblock %}
+{% block header %}Бэкап базы данных{% endblock %}
+
+{% block content %}
+<div id="status-message" class="hidden mb-6 rounded-xl border px-5 py-3 text-sm font-medium"></div>
+
+<div id="progress-overlay" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center backdrop-blur-sm">
+    <div class="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl transform scale-100 transition-all">
+        <div class="text-center mb-6">
+            <div class="w-16 h-16 bg-[#F9F4EF] rounded-full flex items-center justify-center mx-auto mb-4 relative">
+                <i class="fas fa-sync-alt fa-spin text-2xl text-[#6B3F1E]"></i>
+            </div>
+            <h3 class="text-xl font-bold text-[#3E2310] mb-2" id="progress-title">Обработка...</h3>
+            <p class="text-sm text-[#8C735F]" id="progress-text">Пожалуйста, подождите</p>
+        </div>
+
+        <div class="relative pt-1">
+            <div class="overflow-hidden h-2 mb-4 text-xs flex rounded bg-[#F9F4EF]">
+                <div id="progress-bar" style="width: 0%" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-[#6B3F1E] transition-all duration-300"></div>
+            </div>
+            <div class="flex justify-between text-xs text-[#8C735F]">
+                <span id="progress-percent">0%</span>
+                <span id="progress-kind"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div class="glass-card p-6">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 rounded-2xl bg-[#6B3F1E]/10 flex items-center justify-center">
+                <i class="fas fa-download text-xl text-[#6B3F1E]"></i>
+            </div>
+            <div>
+                <h4 class="text-lg font-bold text-[#3E2310]">Экспорт (.zip)</h4>
+                <p class="text-xs text-[#8C735F]">Архив включает JSONL-дамп БД и всю папку media</p>
+            </div>
+        </div>
+
+        <div class="bg-[#F9F4EF] rounded-xl p-4 mb-5">
+            <ul class="text-sm text-[#8C735F] space-y-1.5">
+                <li class="flex items-start gap-2">
+                    <i class="fas fa-box-archive mt-0.5 text-[#6B3F1E]"></i>
+                    Формат `v3`: `manifest.json`, `db/*.jsonl`, `media/**`
+                </li>
+                <li class="flex items-start gap-2">
+                    <i class="fas fa-photo-film mt-0.5 text-[#6B3F1E]"></i>
+                    Восстанавливаются товары, баннеры, support-медиа и видео-постеры
+                </li>
+                <li class="flex items-start gap-2">
+                    <i class="fas fa-memory mt-0.5 text-[#6B3F1E]"></i>
+                    Архив собирается на диске, без загрузки всего файла в память
+                </li>
+            </ul>
+        </div>
+
+        <button onclick="startExport()" class="admin-btn-accent w-full inline-flex items-center justify-center">
+            <i class="fas fa-download mr-2"></i> Создать и скачать backup
+        </button>
+    </div>
+
+    <div class="glass-card p-6">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center">
+                <i class="fas fa-upload text-xl text-red-500"></i>
+            </div>
+            <div>
+                <h4 class="text-lg font-bold text-[#3E2310]">Импорт (.zip / .json)</h4>
+                <p class="text-xs text-[#8C735F]">Восстановление из полного ZIP или legacy JSON</p>
+            </div>
+        </div>
+
+        <div class="bg-red-50 rounded-xl p-4 mb-5 border border-red-200">
+            <ul class="text-sm text-red-600 space-y-1.5">
+                <li class="flex items-start gap-2">
+                    <i class="fas fa-exclamation-triangle mt-0.5"></i>
+                    <strong>Внимание!</strong> Текущие данные БД будут заменены.
+                </li>
+                <li class="flex items-start gap-2">
+                    <i class="fas fa-file-zipper mt-0.5"></i>
+                    `.zip` восстанавливает и БД, и файлы из `media/`.
+                </li>
+                <li class="flex items-start gap-2">
+                    <i class="fas fa-file-code mt-0.5"></i>
+                    Legacy `.json` восстанавливает только БД, без медиафайлов.
+                </li>
+            </ul>
+        </div>
+
+        <form id="import-form" onsubmit="return startImport(event)">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="relative border-2 border-dashed border-[#D6C0AD] rounded-xl bg-[#F9F4EF] hover:bg-white transition p-5 text-center group cursor-pointer mb-4"
+                 id="import-zone">
+                <input type="file" name="dump_file" accept=".zip,.json"
+                    class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    id="import-file-input" required>
+                <div id="file-label-content">
+                    <i class="fas fa-file-upload text-2xl text-[#D6C0AD] group-hover:text-[#6B3F1E] transition mb-1"></i>
+                    <p class="text-sm text-[#8C735F]" id="import-filename">Выберите `.zip` или legacy `.json`</p>
+                </div>
+            </div>
+
+            <div id="legacy-note" class="hidden mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                Выбран legacy JSON: восстановятся только записи БД. Медиафайлы не вернутся.
+            </div>
+
+            <button type="submit" class="admin-btn w-full !bg-red-500 hover:!bg-red-600 text-white" id="import-btn">
+                <i class="fas fa-upload mr-2"></i> Начать импорт
+            </button>
+        </form>
+
+        <div class="mt-6 pt-6 border-t border-[#E8DDD3]">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+                    <i class="fas fa-rotate-left text-amber-600"></i>
+                </div>
+                <div>
+                    <h5 class="text-base font-bold text-[#3E2310]">Вернуть предыдущую БД</h5>
+                    <p class="text-xs text-[#8C735F]">Снапшот создаётся автоматически перед каждым импортом</p>
+                </div>
+            </div>
+
+            {% if rollback_state.available %}
+            <div class="bg-amber-50 rounded-xl p-4 mb-4 border border-amber-200 text-sm text-amber-700">
+                Доступен предыдущий снапшот.
+                <br>Создан: {{ rollback_state.created_at }}
+                <br>Хранится до: {{ rollback_state.expires_at }}
+            </div>
+            <button onclick="startRestorePrevious()" class="admin-btn w-full !bg-amber-500 hover:!bg-amber-600 text-white">
+                <i class="fas fa-rotate-left mr-2"></i> Вернуть предыдущую БД
+            </button>
+            {% else %}
+            <div class="bg-[#F9F4EF] rounded-xl p-4 mb-4 border border-[#E8DDD3] text-sm text-[#8C735F]">
+                Предыдущий снапшот недоступен. Кнопка активируется после следующего импорта и работает 7 дней.
+            </div>
+            <button disabled class="admin-btn w-full !bg-gray-300 !text-gray-500 cursor-not-allowed">
+                <i class="fas fa-ban mr-2"></i> Предыдущая БД недоступна
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+const csrfToken = {{ csrf_token | tojson }};
+let pollInterval = null;
+
+function showStatus(message, type = 'info') {
+    const box = document.getElementById('status-message');
+    const base = 'mb-6 rounded-xl border px-5 py-3 text-sm font-medium';
+    const classes = {
+        info: `${base} border-[#D6C0AD] bg-[#F9F4EF] text-[#6B3F1E]`,
+        success: `${base} border-green-200 bg-green-50 text-green-700`,
+        error: `${base} border-red-200 bg-red-50 text-red-600`,
+        warning: `${base} border-amber-200 bg-amber-50 text-amber-700`,
+    };
+    box.className = classes[type] || classes.info;
+    box.textContent = message;
+    box.classList.remove('hidden');
+}
+
+function showProgress(title, text, kind = '') {
+    document.getElementById('progress-overlay').classList.remove('hidden');
+    document.getElementById('progress-title').textContent = title;
+    document.getElementById('progress-text').textContent = text;
+    document.getElementById('progress-kind').textContent = kind;
+    updateProgressBar(0);
+}
+
+function hideProgress() {
+    document.getElementById('progress-overlay').classList.add('hidden');
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+}
+
+function updateProgressBar(percent) {
+    document.getElementById('progress-bar').style.width = percent + '%';
+    document.getElementById('progress-percent').textContent = percent + '%';
+}
+
+function setLegacyNote(file) {
+    const note = document.getElementById('legacy-note');
+    if (file && file.name.toLowerCase().endsWith('.json')) {
+        note.classList.remove('hidden');
+    } else {
+        note.classList.add('hidden');
+    }
+}
+
+document.getElementById('import-file-input')?.addEventListener('change', function() {
+    const label = document.getElementById('import-filename');
+    if (this.files.length > 0) {
+        const file = this.files[0];
+        const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+        label.innerHTML = `<span class="font-bold text-[#3E2310]">${file.name}</span><br><span class="text-xs">${sizeMB} MB</span>`;
+        setLegacyNote(file);
+    } else {
+        label.textContent = 'Выберите `.zip` или legacy `.json`';
+        setLegacyNote(null);
+    }
+});
+
+function startPolling(jobId, mode) {
+    if (pollInterval) clearInterval(pollInterval);
+
+    pollInterval = setInterval(async () => {
+        try {
+            const res = await fetch(`/admin/backup/jobs/${jobId}`);
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Не удалось получить статус job');
+            }
+
+            updateProgressBar(data.percent || 0);
+            document.getElementById('progress-text').textContent = data.message || 'Выполняется...';
+            document.getElementById('progress-kind').textContent = data.kind || '';
+
+            if (data.status === 'done') {
+                hideProgress();
+                if (data.warning) {
+                    showStatus(data.warning, 'warning');
+                }
+                if (mode === 'export' && data.download_url) {
+                    showStatus('Архив готов. Загрузка началась.', 'success');
+                    window.location.href = data.download_url;
+                } else if (mode === 'import' || mode === 'restore_previous') {
+                    showStatus(data.message || 'Импорт завершён.', 'success');
+                    setTimeout(() => window.location.reload(), 1200);
+                }
+            } else if (data.status === 'error') {
+                hideProgress();
+                showStatus(data.error || data.message || 'Backup job завершился с ошибкой.', 'error');
+            }
+        } catch (error) {
+            hideProgress();
+            showStatus(error.message, 'error');
+        }
+    }, 1000);
+}
+
+async function startExport() {
+    showProgress('Экспорт данных', 'Создаём архив на диске...', 'export');
+
+    try {
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+
+        const res = await fetch('/admin/backup/export/start', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.error || 'Не удалось запустить экспорт');
+        }
+
+        startPolling(data.job_id, 'export');
+    } catch (error) {
+        hideProgress();
+        showStatus(error.message, 'error');
+    }
+}
+
+async function startImport(event) {
+    event.preventDefault();
+
+    if (!confirm('Вы уверены? Текущие данные БД будут заменены.')) {
+        return false;
+    }
+
+    const form = document.getElementById('import-form');
+    const formData = new FormData(form);
+    const file = document.getElementById('import-file-input').files[0];
+    const modeLabel = file && file.name.toLowerCase().endsWith('.json') ? 'legacy-json' : 'zip';
+
+    showProgress('Импорт данных', 'Загружаем файл на сервер...', modeLabel);
+
+    try {
+        const res = await fetch('/admin/backup/import/start', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.error || 'Не удалось запустить импорт');
+        }
+
+        if (data.warning) {
+            showStatus(data.warning, 'warning');
+        }
+        startPolling(data.job_id, 'import');
+    } catch (error) {
+        hideProgress();
+        showStatus(error.message, 'error');
+    }
+
+    return false;
+}
+
+async function startRestorePrevious() {
+    if (!confirm('Вернуть состояние до последнего импорта? Текущие данные будут заменены предыдущим снапшотом.')) {
+        return;
+    }
+
+    showProgress('Восстановление предыдущей БД', 'Готовим rollback-снапшот к восстановлению...', 'restore_previous');
+
+    try {
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+
+        const res = await fetch('/admin/backup/restore/start', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.error || 'Не удалось запустить восстановление предыдущей БД');
+        }
+
+        startPolling(data.job_id, 'restore_previous');
+    } catch (error) {
+        hideProgress();
+        showStatus(error.message, 'error');
+    }
+}
+</script>
+{% endblock %}

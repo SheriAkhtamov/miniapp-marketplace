@@ -1,0 +1,101 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: unicom-bot-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate project
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile Python sources
+        run: python -m compileall -q app main.py create_admin.py
+
+      - name: Validate Docker Compose config
+        run: |
+          cp .env.example .env
+          { docker compose config || docker-compose config; } > /dev/null
+
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+
+    env:
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+      SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+      PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
+      DEPLOY_PATH: /root/shop_bot
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SSH tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends sshpass rsync
+
+      - name: Check required secrets
+        run: |
+          : "${SERVER_HOST:?SERVER_HOST secret is required}"
+          : "${SERVER_USER:?SERVER_USER secret is required}"
+          : "${SERVER_PASSWORD:?SERVER_PASSWORD secret is required}"
+          : "${PRODUCTION_ENV:?PRODUCTION_ENV secret is required}"
+
+      - name: Trust server host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+
+      - name: Prepare remote directory and env
+        run: |
+          export SSHPASS="$SERVER_PASSWORD"
+          sshpass -e ssh "$SERVER_USER@$SERVER_HOST" "mkdir -p '$DEPLOY_PATH'"
+          sshpass -e ssh "$SERVER_USER@$SERVER_HOST" "cd '$DEPLOY_PATH' && if [ -f docker-compose.yml ]; then mkdir -p backups/rollback && tar --exclude='./backups' --exclude='./logs' --exclude='./media' --exclude='./final_certs' --exclude='./letsencrypt' --exclude='./letsencrypt-lib' --exclude='./certbot' --exclude='./.git' -czf backups/rollback/pre-actions-deploy-\$(date +%Y%m%d%H%M%S).tar.gz .; fi"
+          printf '%s\n' "$PRODUCTION_ENV" > /tmp/unicom_bot.env
+          sshpass -e scp /tmp/unicom_bot.env "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/.env"
+
+      - name: Sync application files
+        run: |
+          export SSHPASS="$SERVER_PASSWORD"
+          rsync -az --delete \
+            --exclude='.git/' \
+            --exclude='.env' \
+            --exclude='logs/***' \
+            --exclude='backups/***' \
+            --exclude='final_certs/***' \
+            --exclude='letsencrypt/***' \
+            --exclude='letsencrypt-lib/***' \
+            --exclude='certbot/***' \
+            --exclude='media/***' \
+            -e "sshpass -e ssh" \
+            ./ "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/"
+
+      - name: Rebuild and restart services
+        run: |
+          export SSHPASS="$SERVER_PASSWORD"
+          sshpass -e ssh "$SERVER_USER@$SERVER_HOST" "cd '$DEPLOY_PATH' && chmod +x scripts/*.sh entrypoint.sh renew_ssl.sh && scripts/install_docker.sh && scripts/deploy.sh && docker image prune -f"

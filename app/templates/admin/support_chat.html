@@ -1,0 +1,268 @@
+{% extends "admin/base.html" %}
+{% block title %}Чат — {{ chat.user.username or chat.user.phone or 'Пользователь' }}{% endblock %}
+{% block header %}
+<div class="flex items-center gap-3">
+    <a href="/admin/support" class="w-9 h-9 bg-[#F2E8DC] rounded-lg flex items-center justify-center text-[#3E2310] hover:bg-[#E0CCB7] transition">
+        <i class="fas fa-arrow-left text-sm"></i>
+    </a>
+    <div>
+        <span>{{ chat.user.username or 'Пользователь' }}</span>
+        <span class="text-sm text-[#8C735F] font-normal ml-2">{{ chat.user.phone or '' }}</span>
+    </div>
+    {% if not chat.is_closed %}
+    <form action="/admin/support/{{ chat.id }}/close" method="POST" class="ml-auto">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="admin-btn text-xs" onclick="return confirm('Закрыть обращение?')">
+            <i class="fas fa-check mr-1"></i> Закрыть
+        </button>
+    </form>
+    {% else %}
+    <span class="ml-auto chip bg-gray-100 text-gray-500">Закрыт</span>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="glass-card overflow-hidden" style="min-height:60vh;">
+    <div id="chat-messages" class="p-4 space-y-2 overflow-y-auto" style="max-height:60vh;">
+        {% if has_older %}
+        <div id="load-older-wrap" class="text-center py-2">
+            <button id="load-older-btn" class="text-xs text-[#6B3F1E] font-bold bg-[#F2E8DC] px-4 py-2 rounded-full shadow-sm hover:bg-[#E0CCB7] transition">
+                <i class="fas fa-arrow-up mr-1"></i> Загрузить ранние
+            </button>
+        </div>
+        {% endif %}
+        {% for msg in messages %}
+        <div class="flex {% if msg.sender_type == 'admin' %}justify-end{% else %}justify-start{% endif %}">
+            <div class="max-w-[70%] {% if msg.sender_type == 'admin' %}bg-[#3E2310] text-white{% else %}bg-[#F2E8DC] text-[#3E2310]{% endif %} rounded-2xl px-3.5 py-2.5 {% if msg.sender_type == 'admin' %}rounded-br-md{% else %}rounded-bl-md{% endif %}">
+                {% if msg.sender_type == 'admin' %}
+                <div class="text-[10px] {% if msg.sender_type == 'admin' %}text-white/60{% else %}text-[#8C735F]{% endif %} font-bold mb-0.5">
+                    {{ msg.sender.login or msg.sender.username or 'Админ' if msg.sender else 'Админ' }}
+                </div>
+                {% endif %}
+                {% if msg.image_path %}
+                <a href="{{ msg.image_path | support_image_url }}" target="_blank">
+                    <img src="{{ msg.image_path | support_image_url }}" class="rounded-xl max-w-full max-h-48 mb-1.5" loading="lazy">
+                </a>
+                {% endif %}
+                {% if msg.text %}
+                <p class="text-[13px] leading-relaxed whitespace-pre-wrap">{{ msg.text }}</p>
+                {% endif %}
+                <span class="text-[10px] {% if msg.sender_type == 'admin' %}text-white/50{% else %}text-[#8C735F]{% endif %} block text-right mt-0.5">{{ msg.created_at | datetime_uz('%H:%M') }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if not chat.is_closed %}
+    <div class="border-t border-[#E0CCB7]/40 p-3">
+        <form id="adminSupportForm" enctype="multipart/form-data" class="flex items-end gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label class="flex-shrink-0 w-9 h-9 bg-[#F2E8DC] rounded-lg flex items-center justify-center cursor-pointer hover:bg-[#E0CCB7] transition">
+                <input type="file" id="imageInput" name="image" accept="image/*" class="hidden"
+                    data-admin-image-cropper data-crop-title="Фото для ответа"
+                    data-crop-width="1200" data-crop-height="900">
+                <i class="fas fa-camera text-[#8C735F] text-sm"></i>
+            </label>
+            <div class="flex-1 relative">
+                <textarea id="msgInput" name="text" rows="1"
+                    class="admin-input w-full resize-none max-h-24"
+                    placeholder="Написать ответ..."
+                    style="min-height:38px;"></textarea>
+            </div>
+            <button type="submit" id="sendBtn" class="admin-btn-accent flex-shrink-0 px-3 py-2">
+                <i class="fas fa-paper-plane text-sm"></i>
+            </button>
+        </form>
+        <div id="imagePreview" class="hidden mt-2">
+            <div class="relative inline-block">
+                <img id="previewImg" class="h-16 rounded-lg">
+                <button type="button" id="removeImage" class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+(function() {
+    const container = document.getElementById('chat-messages');
+    const form = document.getElementById('adminSupportForm');
+    if (!form) return;
+    const input = document.getElementById('msgInput');
+    const imageInput = document.getElementById('imageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const preview = document.getElementById('imagePreview');
+    const previewImg = document.getElementById('previewImg');
+    const removeBtn = document.getElementById('removeImage');
+    const csrfToken = '{{ csrf_token }}';
+    const chatId = {{ chat.id }};
+    let lastMsgId = {{ (messages[-1].id if messages else 0) }};
+    let oldestId = {{ oldest_id|default(0) }};
+    let hasOlder = {{ 'true' if has_older else 'false' }};
+    let selectedFile = null;
+
+    function scrollBottom() {
+        container.scrollTop = container.scrollHeight;
+    }
+    scrollBottom();
+
+    input.addEventListener('input', function() {
+        this.style.height = '38px';
+        this.style.height = Math.min(this.scrollHeight, 96) + 'px';
+    });
+
+    function requestSend() {
+        if (sendBtn.disabled) return;
+        if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+            return;
+        }
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    }
+
+    input.addEventListener('keydown', function(e) {
+        if (e.isComposing) return;
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            requestSend();
+        }
+    });
+
+    imageInput.addEventListener('change', function() {
+        const file = this.files[0];
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) { alert('Файл слишком большой (макс 10 МБ)'); this.value = ''; return; }
+        selectedFile = file;
+        previewImg.src = URL.createObjectURL(file);
+        preview.classList.remove('hidden');
+    });
+
+    removeBtn.addEventListener('click', function() {
+        selectedFile = null;
+        imageInput.value = '';
+        preview.classList.add('hidden');
+    });
+
+    function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    function addBubble(msg) {
+        const isAdmin = msg.sender_type === 'admin';
+        const wrap = document.createElement('div');
+        wrap.className = 'flex ' + (isAdmin ? 'justify-end' : 'justify-start');
+        let html = '<div class="max-w-[70%] ' + (isAdmin ? 'bg-[#3E2310] text-white' : 'bg-[#F2E8DC] text-[#3E2310]') +
+            ' rounded-2xl px-3.5 py-2.5 ' + (isAdmin ? 'rounded-br-md' : 'rounded-bl-md') + '">';
+        if (isAdmin && msg.sender_name) {
+            html += '<div class="text-[10px] text-white/60 font-bold mb-0.5">' + escapeHtml(msg.sender_name) + '</div>';
+        }
+        if (msg.image_path) { const iUrl = '/shop/support/image/' + msg.image_path.replace(/\\/g,'/').split('/').pop(); html += '<a href="' + iUrl + '" target="_blank"><img src="' + iUrl + '" class="rounded-xl max-w-full max-h-48 mb-1.5" loading="lazy"></a>'; }
+        if (msg.text) html += '<p class="text-[13px] leading-relaxed whitespace-pre-wrap">' + escapeHtml(msg.text) + '</p>';
+        html += '<span class="text-[10px] ' + (isAdmin ? 'text-white/50' : 'text-[#8C735F]') + ' block text-right mt-0.5">' + msg.created_at + '</span>';
+        html += '</div>';
+        wrap.innerHTML = html;
+        container.appendChild(wrap);
+        scrollBottom();
+    }
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const text = input.value.trim();
+        if (!text && !selectedFile) return;
+        sendBtn.disabled = true;
+        const fd = new FormData();
+        fd.append('text', text);
+        fd.append('csrf_token', csrfToken);
+        if (selectedFile) fd.append('image', selectedFile);
+
+        try {
+            const res = await fetch('/admin/support/' + chatId + '/send', { method: 'POST', body: fd });
+            const data = await res.json();
+            if (data.ok) {
+                addBubble(data.message);
+                lastMsgId = data.message.id;
+                input.value = ''; input.style.height = '38px';
+                selectedFile = null; imageInput.value = ''; preview.classList.add('hidden');
+            }
+        } catch(err) { console.error(err); }
+        finally { sendBtn.disabled = false; }
+    });
+
+    async function poll() {
+        try {
+            const res = await fetch('/admin/support/' + chatId + '/messages?after=' + lastMsgId);
+            const data = await res.json();
+            if (data.messages) data.messages.forEach(function(m) {
+                if (m.id > lastMsgId) { addBubble(m); lastMsgId = m.id; }
+            });
+        } catch(e) {}
+    }
+
+    let timer = setInterval(poll, 4000);
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) clearInterval(timer);
+        else { poll(); timer = setInterval(poll, 4000); }
+    });
+
+    // --- Load older messages (pagination) ---
+    function makeBubbleEl(msg) {
+        const isAdmin = msg.sender_type === 'admin';
+        const wrap = document.createElement('div');
+        wrap.className = 'flex ' + (isAdmin ? 'justify-end' : 'justify-start');
+        let html = '<div class="max-w-[70%] ' + (isAdmin ? 'bg-[#3E2310] text-white' : 'bg-[#F2E8DC] text-[#3E2310]') +
+            ' rounded-2xl px-3.5 py-2.5 ' + (isAdmin ? 'rounded-br-md' : 'rounded-bl-md') + '">';
+        if (isAdmin && msg.sender_name) {
+            html += '<div class="text-[10px] text-white/60 font-bold mb-0.5">' + escapeHtml(msg.sender_name) + '</div>';
+        }
+        if (msg.image_path) {
+            const iUrl = '/shop/support/image/' + msg.image_path.replace(/\\/g,'/').split('/').pop();
+            html += '<a href="' + iUrl + '" target="_blank"><img src="' + iUrl + '" class="rounded-xl max-w-full max-h-48 mb-1.5" loading="lazy"></a>';
+        }
+        if (msg.text) html += '<p class="text-[13px] leading-relaxed whitespace-pre-wrap">' + escapeHtml(msg.text) + '</p>';
+        html += '<span class="text-[10px] ' + (isAdmin ? 'text-white/50' : 'text-[#8C735F]') + ' block text-right mt-0.5">' + msg.created_at + '</span>';
+        html += '</div>';
+        wrap.innerHTML = html;
+        return wrap;
+    }
+
+    const loadOlderBtn = document.getElementById('load-older-btn');
+    if (loadOlderBtn) {
+        loadOlderBtn.addEventListener('click', async function() {
+            if (!hasOlder || !oldestId) return;
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> ...';
+            try {
+                const res = await fetch('/admin/support/' + chatId + '/messages?before=' + oldestId);
+                const data = await res.json();
+                if (data.messages && data.messages.length > 0) {
+                    const scrollH = container.scrollHeight;
+                    const scrollT = container.scrollTop;
+                    const anchor = document.getElementById('load-older-wrap');
+                    const frag = document.createDocumentFragment();
+                    data.messages.forEach(function(m) { frag.appendChild(makeBubbleEl(m)); });
+                    if (anchor && anchor.nextSibling) {
+                        container.insertBefore(frag, anchor.nextSibling);
+                    } else {
+                        container.prepend(frag);
+                    }
+                    oldestId = data.messages[0].id;
+                    container.scrollTop = scrollT + (container.scrollHeight - scrollH);
+                }
+                hasOlder = !!data.has_older;
+                if (!hasOlder) {
+                    const wrap = document.getElementById('load-older-wrap');
+                    if (wrap) wrap.remove();
+                } else {
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-arrow-up mr-1"></i> Загрузить ранние';
+                }
+            } catch(e) {
+                this.disabled = false;
+                this.innerHTML = '<i class="fas fa-arrow-up mr-1"></i> Загрузить ранние';
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

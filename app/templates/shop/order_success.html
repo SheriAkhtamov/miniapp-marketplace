@@ -1,0 +1,22 @@
+{% extends "shop/base.html" %}
+
+{% block content %}
+<div class="flex flex-col items-center justify-center min-h-[80vh] px-4 text-center">
+    <div class="card-surface p-6 max-w-sm w-full">
+        <div class="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-check text-green-500 text-2xl"></i>
+        </div>
+        <h1 class="text-xl font-extrabold text-[#3E2310] mb-1.5">{{ tr('order_accepted', user.language) }}</h1>
+        <p class="text-[#8C735F] text-sm mb-6 leading-relaxed">
+            {% if order.payment_method == 'card_transfer' %}
+            {{ tr('order_created_card_transfer_msg', user.language).replace('{order_id}', order_id|string) | safe }}
+            {% else %}
+            {{ tr('order_created_msg', user.language).replace('{order_id}', order_id|string) | safe }}
+            {% endif %}
+        </p>
+        <a href="/shop" class="btn-primary px-6 py-3 w-full">
+            {{ tr('back_to_shop', user.language) }}
+        </a>
+    </div>
+</div>
+{% endblock %}

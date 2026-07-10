@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Админ-панель{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --admin-bg: #F2E8DC;
+            --admin-surface: #FCF9F5;
+            --admin-ink: #3E2310;
+            --admin-muted: #8C735F;
+            --admin-accent: #6B3F1E;
+            --admin-border: rgba(224, 204, 183, 0.4);
+        }
+
+        body {
+            font-family: 'Manrope', sans-serif;
+            background-color: var(--admin-bg);
+            background-image:
+                radial-gradient(circle at 12% 8%, rgba(198, 169, 146, 0.25), transparent 45%),
+                radial-gradient(circle at 88% 2%, rgba(62, 35, 16, 0.06), transparent 40%),
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+            color: var(--admin-ink);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .sidebar {
+            background: linear-gradient(170deg, #3E2310 0%, #4A2812 55%, #2A180B 100%);
+        }
+
+        .sidebar-link {
+            color: #C6A992;
+            transition: all 0.2s ease;
+            border-radius: 0.75rem;
+        }
+
+        .sidebar-link:hover {
+            color: #FFFFFF;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .sidebar-link.active {
+            color: #FFFFFF;
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: inset 3px 0 0 #C6A992;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid var(--admin-border);
+            border-radius: 1.25rem;
+            box-shadow: 0 8px 32px -8px rgba(62, 35, 16, 0.1);
+        }
+
+        .shadow-coffee {
+            box-shadow: 0 8px 32px -8px rgba(62, 35, 16, 0.1);
+        }
+
+        .chip {
+            padding: 0.3rem 0.65rem;
+            border-radius: 9999px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .admin-card {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid var(--admin-border);
+            border-radius: 1.25rem;
+            box-shadow: 0 8px 32px -8px rgba(62, 35, 16, 0.1);
+        }
+
+        .metric-chip {
+            background: rgba(107, 63, 30, 0.1);
+            color: #6B3F1E;
+            border-radius: 9999px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 0.3rem 0.6rem;
+        }
+
+        /* Admin input styling */
+        .admin-input {
+            background: var(--admin-surface);
+            border: 1.5px solid var(--admin-border);
+            border-radius: 0.75rem;
+            padding: 0.5rem 0.875rem;
+            font-size: 0.875rem;
+            color: var(--admin-ink);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .admin-input:focus {
+            outline: none;
+            border-color: var(--admin-accent);
+            box-shadow: 0 0 0 3px rgba(107, 63, 30, 0.08);
+        }
+
+        .admin-btn {
+            background: var(--admin-ink);
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.8rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.75rem;
+            border: none;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        .admin-btn:hover { background: #2A180B; }
+
+        .admin-btn-accent {
+            background: var(--admin-accent);
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.875rem;
+            padding: 0.625rem 1.25rem;
+            border-radius: 0.75rem;
+            border: none;
+            box-shadow: 0 6px 20px -4px rgba(107, 63, 30, 0.25);
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        .admin-btn-accent:hover { background: #543116; }
+
+        /* Mobile drawer */
+        .mobile-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 40; opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .mobile-overlay.open { opacity: 1; pointer-events: auto; }
+
+        .mobile-drawer {
+            position: fixed; top: 0; left: 0; bottom: 0;
+            width: 280px; max-width: 85vw;
+            z-index: 50;
+            transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto; -webkit-overflow-scrolling: touch;
+        }
+        .mobile-drawer.open { transform: translateX(0); }
+
+        .workspace-switcher {
+            margin-left: auto;
+            position: relative;
+        }
+
+        .workspace-switcher select {
+            appearance: none;
+            background: rgba(252, 249, 245, 0.92);
+            border: 1px solid rgba(224, 204, 183, 0.55);
+            border-radius: 0.875rem;
+            color: var(--admin-ink);
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 800;
+            min-height: 2.5rem;
+            min-width: 12.5rem;
+            padding: 0 2.35rem 0 0.875rem;
+            box-shadow: 0 8px 24px -14px rgba(62, 35, 16, 0.22);
+        }
+
+        .workspace-switcher i {
+            color: var(--admin-muted);
+            pointer-events: none;
+            position: absolute;
+            right: 0.875rem;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /* Mobile card view for tables */
+        @media (max-width: 767px) {
+            .responsive-table { display: none !important; }
+            .mobile-cards { display: block !important; }
+            .page-header-wrap { flex-direction: column !important; align-items: stretch !important; gap: 0.75rem !important; }
+            .page-header-wrap h3 { font-size: 1.25rem !important; }
+            .workspace-switcher { margin-left: 0; width: 100%; }
+            .workspace-switcher select { width: 100%; }
+        }
+        @media (min-width: 768px) {
+            .mobile-cards { display: none !important; }
+        }
+    </style>
+</head>
+
+<body class="leading-normal tracking-normal">
+
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay md:hidden" id="mobileOverlay" onclick="toggleMobileMenu()"></div>
+
+    <!-- Mobile Drawer -->
+    <div class="mobile-drawer sidebar md:hidden" id="mobileDrawer">
+        <div class="p-5 flex items-center justify-between">
+            <div>
+                <h1 class="text-lg font-extrabold text-white tracking-tight">UNICOM</h1>
+                <p class="text-[10px] text-[#C6A992] font-medium mt-0.5 uppercase tracking-wider">Админ-панель</p>
+            </div>
+            <button onclick="toggleMobileMenu()" class="text-[#C6A992] hover:text-white p-1">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+
+        {% set is_sa = user and user.role == 'superadmin' %}
+        {% set perms = (user.permissions or {}) if user else {} %}
+        <nav class="px-3 pb-6 space-y-0.5">
+            {% if is_sa or perms.get('dashboard', false) %}
+            <a href="/admin"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if request.url.path == '/admin' or request.url.path == '/admin/' %}active{% endif %}">
+                <i class="fas fa-chart-pie text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Дашборд</span>
+            </a>
+            {% endif %}
+            {% if is_sa or perms.get('products', false) %}
+            <a href="/admin/products"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/products' in request.url.path %}active{% endif %}">
+                <i class="fas fa-box text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Товары</span>
+            </a>
+            {% endif %}
+            {% if is_sa or perms.get('categories', false) %}
+            <a href="/admin/categories"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/categories' in request.url.path %}active{% endif %}">
+                <i class="fas fa-layer-group text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Категории</span>
+            </a>
+            {% endif %}
+            {% if is_sa or perms.get('orders', false) %}
+            <a href="/admin/orders"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/orders' in request.url.path %}active{% endif %}">
+                <i class="fas fa-shopping-cart text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Заказы</span>
+                <span data-order-badge
+                    class="ml-auto hidden min-w-[1.35rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                </span>
+            </a>
+            {% endif %}
+            {% if is_sa or perms.get('users', false) %}
+            <a href="/admin/users"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/users' in request.url.path %}active{% endif %}">
+                <i class="fas fa-users text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Клиенты</span>
+            </a>
+            {% endif %}
+            {% if is_sa %}
+            <a href="/admin/managers"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/managers' in request.url.path %}active{% endif %}">
+                <i class="fas fa-user-tie text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Сотрудники</span>
+            </a>
+            {% endif %}
+            {% if is_sa or perms.get('mailing', false) %}
+            <a href="/admin/mailing"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/mailing' in request.url.path %}active{% endif %}">
+                <i class="fas fa-paper-plane text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Рассылка</span>
+            </a>
+            {% endif %}
+            {% if is_sa or perms.get('promo', false) %}
+            <a href="/admin/promo"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/promo' in request.url.path %}active{% endif %}">
+                <i class="fas fa-ticket-alt text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Промокоды</span>
+            </a>
+            {% endif %}
+            {% if is_sa or perms.get('banners', false) %}
+            <a href="/admin/banners"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/banners' in request.url.path %}active{% endif %}">
+                <i class="fas fa-images text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Баннеры</span>
+            </a>
+            {% endif %}
+            {% if is_sa or perms.get('support', false) %}
+            <a href="/admin/support"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/support' in request.url.path %}active{% endif %}">
+                <i class="fas fa-headset text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Поддержка</span>
+                <span data-support-badge
+                    class="ml-auto hidden min-w-[1.35rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                </span>
+            </a>
+            {% endif %}
+            {% if is_sa or perms.get('audit', false) %}
+            <a href="/admin/audit"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/audit' in request.url.path %}active{% endif %}">
+                <i class="fas fa-history text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Журнал</span>
+            </a>
+            {% endif %}
+            {% if is_sa or perms.get('settings', false) %}
+            <a href="/admin/settings"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/settings' in request.url.path %}active{% endif %}">
+                <i class="fas fa-cog text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Настройки</span>
+            </a>
+            {% endif %}
+            {% if is_sa or perms.get('analytics', false) %}
+            <a href="/admin/analytics"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/analytics' in request.url.path %}active{% endif %}">
+                <i class="fas fa-chart-bar text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Аналитика</span>
+            </a>
+            {% endif %}
+            {% if is_sa or perms.get('backup', false) %}
+            <a href="/admin/backup"
+                class="sidebar-link flex items-center gap-3 py-2.5 px-3 {% if '/backup' in request.url.path %}active{% endif %}">
+                <i class="fas fa-database text-sm w-5 text-center"></i>
+                <span class="text-sm font-semibold">Бэкап</span>
+            </a>
+            {% endif %}
+
+            <div class="mt-4 pt-4 border-t border-white/10 mx-1">
+                <a href="/admin/logout"
+                    class="sidebar-link flex items-center gap-3 py-2.5 px-3 hover:text-red-300">
+                    <i class="fas fa-sign-out-alt text-sm w-5 text-center"></i>
+                    <span class="text-sm font-semibold">Выход</span>
+                </a>
+            </div>
+        </nav>
+    </div>
+
+    <div class="flex flex-col md:flex-row min-h-screen">
+        <!-- Desktop Sidebar -->
+        <div class="sidebar hidden md:block md:w-60 flex-shrink-0">
+            <div class="fixed w-60 h-screen overflow-y-auto flex flex-col">
+                <div class="p-5">
+                    <h1 class="text-lg font-extrabold text-white tracking-tight">UNICOM</h1>
+                    <p class="text-[10px] text-[#C6A992] font-medium mt-0.5 uppercase tracking-wider">Админ-панель</p>
+                </div>
+
+                <nav class="flex flex-col px-3 py-1 space-y-0.5 flex-1">
+                    {% if is_sa or perms.get('dashboard', false) %}
+                    <a href="/admin"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if request.url.path == '/admin' or request.url.path == '/admin/' %}active{% endif %}">
+                        <i class="fas fa-chart-pie text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Дашборд</span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa or perms.get('products', false) %}
+                    <a href="/admin/products"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/products' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-box text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Товары</span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa or perms.get('categories', false) %}
+                    <a href="/admin/categories"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/categories' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-layer-group text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Категории</span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa or perms.get('orders', false) %}
+                    <a href="/admin/orders"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/orders' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-shopping-cart text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Заказы</span>
+                        <span data-order-badge
+                            class="ml-auto hidden min-w-[1.35rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        </span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa or perms.get('users', false) %}
+                    <a href="/admin/users"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/users' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-users text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Клиенты</span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa %}
+                    <a href="/admin/managers"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/managers' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-user-tie text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Сотрудники</span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa or perms.get('mailing', false) %}
+                    <a href="/admin/mailing"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/mailing' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-paper-plane text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Рассылка</span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa or perms.get('promo', false) %}
+                    <a href="/admin/promo"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/promo' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-ticket-alt text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Промокоды</span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa or perms.get('banners', false) %}
+                    <a href="/admin/banners"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/banners' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-images text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Баннеры</span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa or perms.get('support', false) %}
+                    <a href="/admin/support"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/support' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-headset text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Поддержка</span>
+                        <span data-support-badge
+                            class="ml-auto hidden min-w-[1.35rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        </span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa or perms.get('audit', false) %}
+                    <a href="/admin/audit"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/audit' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-history text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Журнал</span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa or perms.get('settings', false) %}
+                    <a href="/admin/settings"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/settings' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-cog text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Настройки</span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa or perms.get('analytics', false) %}
+                    <a href="/admin/analytics"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/analytics' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-chart-bar text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Аналитика</span>
+                    </a>
+                    {% endif %}
+                    {% if is_sa or perms.get('backup', false) %}
+                    <a href="/admin/backup"
+                        class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 {% if '/backup' in request.url.path %}active{% endif %}">
+                        <i class="fas fa-database text-sm w-5 text-center"></i>
+                        <span class="text-sm font-semibold">Бэкап</span>
+                    </a>
+                    {% endif %}
+
+                    <div class="mt-auto pt-4 border-t border-white/10 mx-1">
+                        <a href="/admin/logout"
+                            class="sidebar-link flex items-center gap-2.5 py-2.5 px-3 mb-4 hover:text-red-300">
+                            <i class="fas fa-sign-out-alt text-sm w-5 text-center"></i>
+                            <span class="text-sm font-semibold">Выход</span>
+                        </a>
+                    </div>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 md:pb-8 w-full relative min-w-0">
+            <!-- Mobile Header -->
+            <div class="bg-[#3E2310] md:hidden px-4 py-3 flex justify-between items-center text-white sticky top-0 z-30">
+                <button onclick="toggleMobileMenu()" class="text-[#C6A992] hover:text-white p-1 -ml-1">
+                    <i class="fas fa-bars text-lg"></i>
+                </button>
+                <h1 class="font-extrabold text-base tracking-tight">UNICOM <span class="text-[#C6A992] font-medium text-xs">Админ</span></h1>
+                <a href="/admin/logout" class="text-[#C6A992] hover:text-white text-sm p-1"><i class="fas fa-sign-out-alt"></i></a>
+            </div>
+
+            <div class="p-3 sm:p-4 md:p-8">
+                <div class="mb-4 md:mb-6 page-header-wrap flex flex-wrap items-center gap-2">
+                    <h3 class="text-xl md:text-2xl font-extrabold text-[#3E2310]">{% block header %}Панель управления{% endblock %}</h3>
+                    <label class="workspace-switcher" aria-label="Переключить workspace">
+                        <select onchange="if (this.value) window.location.href = this.value">
+                            <option value="{{ market_workspace_url }}" selected>UNICOM Market</option>
+                            <option value="{{ hr_workspace_url }}">UNICOM HR отдел</option>
+                        </select>
+                        <i class="fas fa-chevron-down text-xs"></i>
+                    </label>
+                </div>
+
+                <div class="min-w-0">
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function toggleMobileMenu() {
+        document.getElementById('mobileOverlay').classList.toggle('open');
+        document.getElementById('mobileDrawer').classList.toggle('open');
+        document.body.style.overflow = document.getElementById('mobileDrawer').classList.contains('open') ? 'hidden' : '';
+    }
+
+    (function () {
+        const badgeConfigs = [
+            {
+                selector: '[data-support-badge]',
+                endpoint: '/admin/support/unread-count',
+                errorLabel: 'support unread count',
+            },
+            {
+                selector: '[data-order-badge]',
+                endpoint: '/admin/orders/unread-count',
+                errorLabel: 'order unread count',
+            },
+        ].map(function (config) {
+            return {
+                selector: config.selector,
+                endpoint: config.endpoint,
+                errorLabel: config.errorLabel,
+                badges: Array.from(document.querySelectorAll(config.selector)),
+            };
+        }).filter(function (config) {
+            return config.badges.length > 0;
+        });
+
+        if (!badgeConfigs.length) return;
+
+        let timer = null;
+
+        function renderBadge(badges, count) {
+            badges.forEach(function (badge) {
+                if (count > 0) {
+                    badge.textContent = count > 99 ? '99+' : String(count);
+                    badge.classList.remove('hidden');
+                    badge.classList.add('inline-flex');
+                } else {
+                    badge.textContent = '';
+                    badge.classList.add('hidden');
+                    badge.classList.remove('inline-flex');
+                }
+            });
+        }
+
+        async function refreshBadges() {
+            await Promise.all(badgeConfigs.map(async function (config) {
+                try {
+                    const res = await fetch(config.endpoint, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    if (!res.ok) {
+                        if (res.status === 401 || res.status === 403) {
+                            renderBadge(config.badges, 0);
+                        }
+                        return;
+                    }
+                    const data = await res.json();
+                    renderBadge(config.badges, Number(data.count) || 0);
+                } catch (err) {
+                    console.error('Failed to load ' + config.errorLabel, err);
+                }
+            }));
+        }
+
+        function startPolling() {
+            if (timer) clearInterval(timer);
+            refreshBadges();
+            timer = setInterval(refreshBadges, 10000);
+        }
+
+        startPolling();
+
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) {
+                if (timer) clearInterval(timer);
+                timer = null;
+                return;
+            }
+            startPolling();
+        });
+    })();
+    </script>
+    <script src="/static/js/admin_image_cropper.js?v=1"></script>
+</body>
+
+</html>

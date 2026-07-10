@@ -1,0 +1,60 @@
+{% extends "shop/base.html" %}
+
+{% block content %}
+<div class="sticky top-0 page-header z-30 px-4 py-3 flex items-center">
+    <a href="/shop/profile"
+        class="mr-3 w-10 h-10 bg-white rounded-xl flex items-center justify-center text-[#3E2310] shadow-sm active:scale-90 transition">
+        <i class="fas fa-arrow-left text-sm"></i>
+    </a>
+    <h1 class="text-lg font-extrabold text-[#3E2310]">{{ tr('profile_title', user.language) }}</h1>
+</div>
+
+<form action="/shop/profile/update" method="POST" class="px-4 pb-nav space-y-5 mt-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="card-surface p-4">
+        <h3 class="font-bold text-[#3E2310] text-[15px] mb-3">{{ tr('fill_profile', user.language) }}</h3>
+        <div class="space-y-3">
+            {% if user.phone %}
+            <div>
+                <label class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider mb-1 ml-0.5">{{ tr('phone', user.language) }}</label>
+                <div class="w-full input-surface p-3 text-sm font-bold text-[#8C735F]">{{ user.phone }}</div>
+            </div>
+            {% else %}
+            <div class="rounded-xl border border-[#E0CCB7]/60 bg-[#F9F4EF] p-3.5">
+                <p class="text-sm font-bold text-[#3E2310]">{{ tr('phone_not_set', user.language) }}</p>
+                <p class="mt-1 text-[12px] leading-snug text-[#8C735F]">{{ tr('phone_required_hint', user.language) }}</p>
+                <button type="button" onclick="openPhoneRequestBot()"
+                    class="mt-3 w-full btn-secondary py-2.5 px-4 text-sm active:scale-[0.98] transition">
+                    <i class="fab fa-telegram-plane text-base"></i>
+                    <span>{{ tr('phone_request_bot', user.language) }}</span>
+                </button>
+            </div>
+            {% endif %}
+            <input type="hidden" name="phone" value="{{ user.phone or '' }}">
+            <div>
+                <label class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider mb-1.5 ml-0.5">{{ tr('language', user.language) }}</label>
+                <div class="grid grid-cols-2 gap-2.5">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="language" value="ru" class="peer hidden" {% if user.language != 'uz' %}checked{% endif %}>
+                        <div class="card-surface border-2 border-transparent peer-checked:border-[#3E2310] p-3 text-center transition-all">
+                            <span class="font-bold text-[#3E2310] text-sm">Русский</span>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="language" value="uz" class="peer hidden" {% if user.language == 'uz' %}checked{% endif %}>
+                        <div class="card-surface border-2 border-transparent peer-checked:border-[#3E2310] p-3 text-center transition-all">
+                            <span class="font-bold text-[#3E2310] text-sm">O'zbekcha</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button type="submit"
+        class="w-full btn-secondary active:scale-[0.98] transition-transform">
+        <span>{{ tr('save', user.language) }}</span>
+        <i class="fas fa-check text-xs"></i>
+    </button>
+</form>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "shop/base.html" %}
+
+{% block content %}
+{% set lang_next = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
+<div class="sticky top-0 page-header z-30 px-4 py-3">
+    <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+            <h1 class="text-lg font-extrabold text-[#3E2310]">{{ tr('categories_title', user.language) }}</h1>
+            <p class="text-[11px] text-[#8C735F] font-semibold mt-0.5">{{ tr('all_products', user.language) }}</p>
+        </div>
+        <div class="flex text-[13px] font-bold bg-white/60 p-1 rounded-xl border border-[#E0CCB7]/40 flex-shrink-0">
+            <a href="/shop/set_lang?lang=ru&next={{ lang_next | urlencode }}"
+                class="px-2.5 py-1 rounded-lg transition-all duration-200 {% if user.language == 'ru' %}bg-[#3E2310] text-white shadow-sm{% else %}text-[#8C735F]{% endif %}">RU</a>
+            <a href="/shop/set_lang?lang=uz&next={{ lang_next | urlencode }}"
+                class="px-2.5 py-1 rounded-lg transition-all duration-200 {% if user.language == 'uz' %}bg-[#3E2310] text-white shadow-sm{% else %}text-[#8C735F]{% endif %}">UZ</a>
+        </div>
+    </div>
+</div>
+
+<div class="px-4 pb-nav mt-3">
+    <div class="grid grid-cols-2 gap-3">
+        <a href="/shop" class="category-photo-card category-photo-card--all active:scale-[0.98] transition-transform">
+            {% if all_products_image_path %}
+            <img src="{{ all_products_image_path }}" alt="{{ tr('all_products', user.language) }}" class="category-photo-img">
+            {% else %}
+            <div class="category-photo-fallback">
+                <i class="fas fa-border-all text-3xl"></i>
+            </div>
+            {% endif %}
+            <div class="category-photo-overlay"></div>
+            <div class="category-photo-content">
+                <span class="category-photo-count">{{ tr('catalog', user.language) }}</span>
+                <h3>{{ tr('all_products', user.language) }}</h3>
+            </div>
+        </a>
+
+        {% for cat in categories %}
+        {% set active_count = cat.products | selectattr('is_active') | list | length %}
+        <a href="/shop/category/{{ cat.id }}" class="category-photo-card active:scale-[0.98] transition-transform">
+            {% if cat.image_path %}
+            <img src="{{ cat.image_path }}" alt="{{ cat.name_ru if user.language == 'ru' else cat.name_uz }}" class="category-photo-img">
+            {% else %}
+            <div class="category-photo-fallback">
+                <i class="fas fa-box-open text-3xl"></i>
+            </div>
+            {% endif %}
+            <div class="category-photo-overlay"></div>
+            <div class="category-photo-content">
+                <span class="category-photo-count">{{ active_count }} {{ tr('products_count', user.language) }}</span>
+                <h3>{{ cat.name_ru if user.language == 'ru' else cat.name_uz }}</h3>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if not categories %}
+    <div class="mt-4 text-center py-14 card-muted p-4">
+        <div class="text-4xl mb-3 text-[#D6C0AD]"><i class="fas fa-layer-group"></i></div>
+        <p class="text-[#8C735F] font-medium text-sm">{{ tr('nothing_yet', user.language) }}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

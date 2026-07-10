@@ -1,0 +1,361 @@
+{% extends "admin/base.html" %}
+
+{% block header %}Создать заказ{% endblock %}
+
+{% block content %}
+<style>
+    .product-search-results {
+        position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+        background: white; border: 1px solid var(--admin-border);
+        border-radius: 0.75rem; max-height: 260px; overflow-y: auto;
+        box-shadow: 0 12px 40px -8px rgba(62,35,16,0.18);
+        display: none;
+    }
+    .product-search-results.active { display: block; }
+    .product-search-item {
+        padding: 0.6rem 0.875rem; cursor: pointer; display: flex;
+        align-items: center; gap: 0.75rem; transition: background 0.15s;
+        font-size: 0.875rem;
+    }
+    .product-search-item:hover { background: #F9F4EF; }
+    .product-search-item img {
+        width: 36px; height: 36px; object-fit: cover; border-radius: 0.5rem;
+        flex-shrink: 0; background: #F2E8DC;
+    }
+    .cart-table th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #8C735F; }
+</style>
+
+{% if errors is defined and errors %}
+<div class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4">
+    <p class="font-bold text-red-700 text-sm mb-1"><i class="fas fa-exclamation-circle mr-1"></i> Ошибки:</p>
+    <ul class="text-sm text-red-600 list-disc list-inside space-y-0.5">
+        {% for err in errors %}
+        <li>{{ err }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<form method="POST" action="/admin/orders/new" id="orderForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <div class="flex flex-col lg:flex-row gap-5">
+        <!-- Left Column: Customer Info -->
+        <div class="w-full lg:w-1/3 space-y-4">
+            <div class="glass-card p-5">
+                <h4 class="text-base font-bold text-[#3E2310] mb-4 pb-2 border-b border-[#E0CCB7]/40">
+                    <i class="fas fa-user mr-1.5"></i> Клиент
+                </h4>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-[#8C735F] uppercase tracking-wider mb-1">Имя клиента *</label>
+                        <input type="text" name="customer_name" required
+                            value="{{ form_data.customer_name if form_data is defined and form_data else '' }}"
+                            class="admin-input w-full" placeholder="Имя Фамилия">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-[#8C735F] uppercase tracking-wider mb-1">Телефон *</label>
+                        <input type="tel" name="contact_phone" required
+                            value="{{ form_data.contact_phone if form_data is defined and form_data else '' }}"
+                            class="admin-input w-full" placeholder="+998 90 123 45 67">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-[#8C735F] uppercase tracking-wider mb-1">Комментарий</label>
+                        <textarea name="comment" rows="2"
+                            class="admin-input w-full resize-none" placeholder="Примечания к заказу">{{ form_data.comment if form_data is defined and form_data else '' }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card p-5">
+                <h4 class="text-base font-bold text-[#3E2310] mb-4 pb-2 border-b border-[#E0CCB7]/40">
+                    <i class="fas fa-credit-card mr-1.5"></i> Оплата и доставка
+                </h4>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-[#8C735F] uppercase tracking-wider mb-1">Способ оплаты</label>
+                        <select name="payment_method" class="admin-input w-full">
+                            <option value="cash" {{ 'selected' if form_data is defined and form_data and form_data.payment_method == 'cash' }}>Наличные</option>
+                            <option value="card" {{ 'selected' if form_data is defined and form_data and form_data.payment_method == 'card' }}>Payme</option>
+                            <option value="click" {{ 'selected' if form_data is defined and form_data and form_data.payment_method == 'click' }}>Click</option>
+                            <option value="card_transfer" {{ 'selected' if form_data is defined and form_data and form_data.payment_method == 'card_transfer' }}>Перевод на карту</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-[#8C735F] uppercase tracking-wider mb-1">Способ получения</label>
+                        <select name="delivery_method" id="deliveryMethod" class="admin-input w-full" onchange="toggleDeliveryFields()">
+                            <option value="pickup" {% if not pickup_enabled %}disabled{% endif %}
+                                {% if pickup_enabled and ((form_data is not defined) or not form_data or form_data.delivery_method == 'pickup') %}selected{% endif %}>Самовывоз{% if not pickup_enabled %} (недоступен){% endif %}</option>
+                            <option value="delivery" {% if not pickup_enabled or (form_data is defined and form_data and form_data.delivery_method == 'delivery') %}selected{% endif %}>Доставка</option>
+                        </select>
+                    </div>
+                    <div id="pickupAddressBlock" class="rounded-xl bg-[#F9F4EF] border border-[#E0CCB7]/50 p-3 text-sm text-[#8C735F]">
+                        <span class="block text-xs font-bold text-[#3E2310] mb-1">Адрес самовывоза</span>
+                        {{ pickup_address }}
+                    </div>
+                    <div id="addressBlock" style="display: none;">
+                        <label class="block text-xs font-bold text-[#8C735F] uppercase tracking-wider mb-1">Вариант доставки</label>
+                        <select name="delivery_option_id" id="deliveryOption" class="admin-input w-full mb-3" onchange="updateTotal()">
+                            {% for option in delivery_options %}
+                            <option value="{{ option.id }}" data-price="{{ option.price }}"
+                                {% if (form_data is defined and form_data and form_data.delivery_option_id == option.id) or (form_data is not defined and loop.first) %}selected{% endif %}>
+                                {{ option.name_ru }} — {{ option.price | number_format }} сум
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <label class="block text-xs font-bold text-[#8C735F] uppercase tracking-wider mb-1">Адрес доставки *</label>
+                        <textarea name="delivery_address" rows="2" id="deliveryAddress"
+                            class="admin-input w-full resize-none" placeholder="Улица, дом, квартира">{{ form_data.delivery_address if form_data is defined and form_data else '' }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Total & Submit -->
+            <div class="glass-card p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-sm font-bold text-[#8C735F] uppercase tracking-wider">Итого:</span>
+                    <span id="orderTotal" class="text-2xl font-extrabold text-[#3E2310] tabular-nums">0 сум</span>
+                </div>
+                <button type="submit" id="submitBtn"
+                    class="w-full admin-btn-accent py-3 text-base flex items-center justify-center gap-2" disabled>
+                    <i class="fas fa-check"></i> Создать заказ
+                </button>
+                <a href="/admin/orders" class="block text-center mt-3 text-sm font-semibold text-[#6B3F1E] hover:text-[#543116]">
+                    ← Назад к заказам
+                </a>
+            </div>
+        </div>
+
+        <!-- Right Column: Products -->
+        <div class="w-full lg:w-2/3">
+            <div class="glass-card p-5">
+                <h4 class="text-base font-bold text-[#3E2310] mb-4 pb-2 border-b border-[#E0CCB7]/40">
+                    <i class="fas fa-box mr-1.5"></i> Товары
+                </h4>
+
+                <!-- Product Search -->
+                <div class="relative mb-4">
+                    <input type="text" id="productSearch"
+                        class="admin-input w-full pl-10" placeholder="Поиск товаров...">
+                    <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8C735F] text-sm"></i>
+                    <div id="searchResults" class="product-search-results"></div>
+                </div>
+
+                <!-- Selected Products Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full cart-table" id="cartTable">
+                        <thead>
+                            <tr class="border-b border-[#E0CCB7]/40">
+                                <th class="py-2 px-2 text-left font-bold">Товар</th>
+                                <th class="py-2 px-2 text-center font-bold w-20">Цена</th>
+                                <th class="py-2 px-2 text-center font-bold w-24">Кол-во</th>
+                                <th class="py-2 px-2 text-right font-bold w-24">Сумма</th>
+                                <th class="py-2 px-2 text-center font-bold w-12"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="cartBody">
+                            <tr id="emptyRow">
+                                <td colspan="5" class="py-8 text-center text-[#8C735F] text-sm">
+                                    <i class="fas fa-shopping-cart text-2xl mb-2 block opacity-30"></i>
+                                    Начните вводить название товара в поиске
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+(function() {
+    const searchInput = document.getElementById('productSearch');
+    const searchResults = document.getElementById('searchResults');
+    const cartBody = document.getElementById('cartBody');
+    const emptyRow = document.getElementById('emptyRow');
+    const orderTotal = document.getElementById('orderTotal');
+    const submitBtn = document.getElementById('submitBtn');
+    let searchTimeout = null;
+    let cartItems = [];
+
+    function formatNumber(n) {
+        return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    }
+
+    function updateTotal() {
+        let total = 0;
+        cartItems.forEach(item => { total += item.price * item.qty; });
+        if (document.getElementById('deliveryMethod').value === 'delivery') {
+            const deliveryOption = document.getElementById('deliveryOption');
+            const selectedOption = deliveryOption ? deliveryOption.options[deliveryOption.selectedIndex] : null;
+            total += selectedOption ? (parseInt(selectedOption.dataset.price) || 0) : 0;
+        }
+        orderTotal.textContent = formatNumber(total) + ' сум';
+        submitBtn.disabled = cartItems.length === 0;
+    }
+
+    function minQtyForProduct(product) {
+        return Math.max(1, parseInt(product.min_order_quantity) || 1);
+    }
+
+    function renderCart() {
+        if (cartItems.length === 0) {
+            emptyRow.style.display = '';
+            return;
+        }
+        emptyRow.style.display = 'none';
+
+        // Remove existing product rows
+        cartBody.querySelectorAll('.cart-item-row').forEach(r => r.remove());
+
+        cartItems.forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            tr.className = 'cart-item-row border-b border-[#E0CCB7]/20 hover:bg-[#F9F4EF] transition';
+            const isPack = item.sell_type === 'pack' && item.pack_quantity;
+            const unitLabel = isPack ? 'уп' : 'шт';
+            const packBadge = isPack ? `<span class="inline-block bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1">📦 ${item.pack_quantity} шт/уп</span>` : '';
+            const hasDiscount = item.has_discount && item.discount_price && item.regular_price && item.discount_price < item.regular_price;
+            const priceCell = hasDiscount
+                ? `<div class="leading-tight">
+                    <span class="block font-extrabold text-red-600 tabular-nums">${formatNumber(item.price)}</span>
+                    <span class="block text-[10px] font-bold text-[#B09B8B] line-through tabular-nums">${formatNumber(item.regular_price)}</span>
+                   </div>`
+                : `<span class="tabular-nums">${formatNumber(item.price)}</span>`;
+            tr.innerHTML = `
+                <td class="py-2.5 px-2 text-sm font-medium text-[#3E2310]">
+                    ${item.name}${packBadge}
+                    <span class="text-xs text-[#8C735F] block">Склад: ${item.stock} ${unitLabel}</span>
+                    <input type="hidden" name="product_id[]" value="${item.id}">
+                </td>
+                <td class="py-2.5 px-2 text-center text-sm text-[#3E2310]">${priceCell}${isPack ? '<br><span class="text-[10px] text-[#8C735F]">за уп.</span>' : ''}</td>
+                <td class="py-2.5 px-2 text-center">
+                    <div class="flex items-center justify-center gap-1">
+                        <button type="button" onclick="window._cartMinus(${idx})"
+                            class="w-7 h-7 rounded-lg bg-[#F2E8DC] hover:bg-[#D6C0AD] text-[#3E2310] font-bold text-sm transition flex items-center justify-center">−</button>
+                        <input type="number" name="quantity[]" value="${item.qty}" min="${item.min_qty}" max="${item.stock}"
+                            class="w-12 text-center text-sm font-bold border border-[#E0CCB7] rounded-lg py-1 focus:outline-none focus:ring-1 focus:ring-[#6B3F1E]/30"
+                            onchange="window._cartQty(${idx}, this.value)">
+                        <button type="button" onclick="window._cartPlus(${idx})"
+                            class="w-7 h-7 rounded-lg bg-[#F2E8DC] hover:bg-[#D6C0AD] text-[#3E2310] font-bold text-sm transition flex items-center justify-center">+</button>
+                    </div>
+                </td>
+                <td class="py-2.5 px-2 text-right text-sm font-bold tabular-nums text-[#3E2310]">${formatNumber(item.price * item.qty)}</td>
+                <td class="py-2.5 px-2 text-center">
+                    <button type="button" onclick="window._cartRemove(${idx})"
+                        class="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs transition flex items-center justify-center">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </td>
+            `;
+            cartBody.appendChild(tr);
+        });
+        updateTotal();
+    }
+
+    window._cartMinus = function(idx) {
+        if (cartItems[idx].qty > cartItems[idx].min_qty) { cartItems[idx].qty--; renderCart(); }
+    };
+    window._cartPlus = function(idx) {
+        if (cartItems[idx].qty < cartItems[idx].stock) { cartItems[idx].qty++; renderCart(); }
+    };
+    window._cartQty = function(idx, val) {
+        let v = parseInt(val) || cartItems[idx].min_qty;
+        v = Math.max(cartItems[idx].min_qty, Math.min(v, cartItems[idx].stock));
+        cartItems[idx].qty = v;
+        renderCart();
+    };
+    window._cartRemove = function(idx) {
+        cartItems.splice(idx, 1);
+        renderCart();
+        updateTotal();
+        if (cartItems.length === 0) emptyRow.style.display = '';
+    };
+
+    function addToCart(product) {
+        const minQty = minQtyForProduct(product);
+        const existing = cartItems.find(i => i.id === product.id);
+        if (existing) {
+            if (existing.qty < existing.stock) existing.qty++;
+        } else {
+            if (product.stock < minQty) return;
+            cartItems.push({
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                regular_price: product.regular_price || product.price,
+                discount_price: product.discount_price || null,
+                has_discount: !!product.has_discount,
+                stock: product.stock,
+                qty: minQty,
+                min_qty: minQty,
+                sell_type: product.sell_type || 'piece',
+                pack_quantity: product.pack_quantity
+            });
+        }
+        renderCart();
+        searchInput.value = '';
+        searchResults.classList.remove('active');
+    }
+
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        const q = this.value.trim();
+        if (q.length < 1) { searchResults.classList.remove('active'); return; }
+        searchTimeout = setTimeout(() => {
+            fetch('/admin/api/products/search?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.length) {
+                        searchResults.innerHTML = '<div class="p-3 text-sm text-[#8C735F] text-center">Ничего не найдено</div>';
+                    } else {
+                        searchResults.innerHTML = data.map(p => {
+                            const isPk = p.sell_type === 'pack' && p.pack_quantity;
+                            const unit = isPk ? 'уп' : 'шт';
+                            const minQty = minQtyForProduct(p);
+                            const pkBadge = isPk ? ` <span class="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1 py-0.5 rounded">${p.pack_quantity} шт/уп</span>` : '';
+                            const priceLabel = p.has_discount
+                                ? `<span class="font-extrabold text-red-600">${formatNumber(p.price)} сум</span> <span class="line-through text-[#B09B8B]">${formatNumber(p.regular_price)} сум</span>${isPk ? ' / уп' : ''}`
+                                : `${formatNumber(p.price)} сум${isPk ? '/уп' : ''}`;
+                            return `
+                            <div class="product-search-item" data-product='${JSON.stringify(p)}'>
+                                <img src="${p.image || '/static/img/placeholder.png'}" alt="" onerror="this.style.display='none'">
+                                <div class="flex-1 min-w-0">
+                                    <div class="font-semibold text-[#3E2310] truncate">${p.name}${pkBadge}</div>
+                                    <div class="text-xs text-[#8C735F]">${priceLabel} · Склад: ${p.stock} ${unit}</div>
+                                </div>
+                                ${p.stock < minQty ? '<span class="text-xs text-red-500 font-bold">Меньше минимума</span>' : '<span class="text-xs text-green-600 font-bold">+</span>'}
+                            </div>
+                        `}).join('');
+                    }
+                    searchResults.classList.add('active');
+                    searchResults.querySelectorAll('.product-search-item').forEach(el => {
+                        el.addEventListener('click', function() {
+                            const p = JSON.parse(this.dataset.product);
+                            addToCart(p);
+                        });
+                    });
+                })
+                .catch(() => { searchResults.classList.remove('active'); });
+        }, 250);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+            searchResults.classList.remove('active');
+        }
+    });
+
+    // Delivery toggle
+    window.toggleDeliveryFields = function() {
+        const dm = document.getElementById('deliveryMethod').value;
+        document.getElementById('pickupAddressBlock').style.display = dm === 'pickup' ? '' : 'none';
+        document.getElementById('addressBlock').style.display = dm === 'delivery' ? '' : 'none';
+        updateTotal();
+    };
+    toggleDeliveryFields();
+
+    updateTotal();
+})();
+</script>
+{% endblock %}

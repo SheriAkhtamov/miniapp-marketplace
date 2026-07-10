@@ -1,0 +1,361 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Аналитика — {{ sel_month_name }} {{ sel_year }}{% endblock %}
+{% block header %}📊 Аналитика{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- ── Period selector + Export ── -->
+<div class="admin-card p-5 mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <form method="get" action="/admin/analytics" class="flex flex-wrap items-center gap-3">
+        <label class="text-sm font-semibold text-[#8C735F]">Период:</label>
+        <select name="month" class="admin-input text-sm py-1.5 px-3">
+            {% for m_num, m_name in months_map.items() %}
+            <option value="{{ m_num }}" {% if m_num == sel_month %}selected{% endif %}>{{ m_name }}</option>
+            {% endfor %}
+        </select>
+        <select name="year" class="admin-input text-sm py-1.5 px-3">
+            {% for y in range(current_year - 2, current_year + 1) %}
+            <option value="{{ y }}" {% if y == sel_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="admin-btn text-sm">Показать</button>
+    </form>
+    <a href="/admin/analytics/export?month={{ sel_month }}&year={{ sel_year }}"
+       class="admin-btn-accent flex items-center gap-2 text-sm no-underline">
+        <i class="fas fa-file-excel"></i> Скачать Excel
+    </a>
+</div>
+
+<!-- ── 1. Finance KPI Cards ── -->
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+    <!-- Total Revenue -->
+    <div class="admin-card p-5">
+        <div class="flex items-center gap-4">
+            <div class="p-3 rounded-2xl bg-[#dcfce7] text-[#16a34a]">
+                <i class="fas fa-money-bill-wave fa-lg"></i>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-[#8C735F] uppercase tracking-widest mb-1">Выручка</p>
+                <p class="text-2xl font-extrabold text-[#3E2310]">{{ total_revenue | number_format }} <span class="text-xs text-[#8C735F] font-semibold">сум</span></p>
+            </div>
+        </div>
+    </div>
+    <!-- AOV -->
+    <div class="admin-card p-5">
+        <div class="flex items-center gap-4">
+            <div class="p-3 rounded-2xl bg-[#fef9c3] text-[#ca8a04]">
+                <i class="fas fa-coins fa-lg"></i>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-[#8C735F] uppercase tracking-widest mb-1">Средний чек</p>
+                <p class="text-2xl font-extrabold text-[#3E2310]">{{ aov | number_format }} <span class="text-xs text-[#8C735F] font-semibold">сум</span></p>
+            </div>
+        </div>
+    </div>
+    <!-- Completed -->
+    <div class="admin-card p-5">
+        <div class="flex items-center gap-4">
+            <div class="p-3 rounded-2xl bg-[#e0f2fe] text-[#0284c7]">
+                <i class="fas fa-check-circle fa-lg"></i>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-[#8C735F] uppercase tracking-widest mb-1">Завершено</p>
+                <p class="text-2xl font-extrabold text-[#3E2310]">{{ completed_orders }}</p>
+            </div>
+        </div>
+    </div>
+    <!-- New Customers -->
+    <div class="admin-card p-5">
+        <div class="flex items-center gap-4">
+            <div class="p-3 rounded-2xl bg-[#ede9fe] text-[#5b3df5]">
+                <i class="fas fa-user-plus fa-lg"></i>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-[#8C735F] uppercase tracking-widest mb-1">Новые клиенты</p>
+                <p class="text-2xl font-extrabold text-[#3E2310]">{{ new_customers }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── 2. Order Conversion ── -->
+<div class="admin-card p-6 mb-8">
+    <h3 class="text-lg font-bold text-[#3E2310] mb-4">🔄 Конверсия заказов</h3>
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-4">
+        <div class="bg-[#F9F4EF] rounded-xl p-4 text-center">
+            <p class="text-2xl font-extrabold text-[#3E2310]">{{ orders_total }}</p>
+            <p class="text-xs text-[#8C735F] font-semibold mt-1">Всего</p>
+        </div>
+        <div class="bg-[#dcfce7] rounded-xl p-4 text-center">
+            <p class="text-2xl font-extrabold text-[#16a34a]">{{ orders_done }}</p>
+            <p class="text-xs text-[#8C735F] font-semibold mt-1">Завершено</p>
+        </div>
+        <div class="bg-[#fee2e2] rounded-xl p-4 text-center">
+            <p class="text-2xl font-extrabold text-[#ef4444]">{{ orders_cancelled }}</p>
+            <p class="text-xs text-[#8C735F] font-semibold mt-1">Отменено</p>
+        </div>
+        <div class="bg-[#fef9c3] rounded-xl p-4 text-center">
+            <p class="text-2xl font-extrabold text-[#ca8a04]">{{ orders_new }}</p>
+            <p class="text-xs text-[#8C735F] font-semibold mt-1">Новые</p>
+        </div>
+        <div class="bg-[#e0f2fe] rounded-xl p-4 text-center">
+            <p class="text-2xl font-extrabold text-[#0284c7]">{{ orders_delivery }}</p>
+            <p class="text-xs text-[#8C735F] font-semibold mt-1">В пути</p>
+        </div>
+    </div>
+    {% if orders_total > 0 %}
+    <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden flex">
+        {% set pct_done = (orders_done * 100 / orders_total) | round(1) %}
+        {% set pct_cancel = (orders_cancelled * 100 / orders_total) | round(1) %}
+        {% set pct_other = (100 - pct_done - pct_cancel) | round(1) %}
+        <div class="bg-[#16a34a] h-4 transition-all" style="width: {{ pct_done }}%" title="Завершено {{ pct_done }}%"></div>
+        <div class="bg-[#fbbf24] h-4 transition-all" style="width: {{ pct_other }}%" title="В процессе {{ pct_other }}%"></div>
+        <div class="bg-[#ef4444] h-4 transition-all" style="width: {{ pct_cancel }}%" title="Отменено {{ pct_cancel }}%"></div>
+    </div>
+    <div class="flex gap-4 mt-2 text-xs text-[#8C735F] font-semibold">
+        <span><span class="inline-block w-2 h-2 rounded-full bg-[#16a34a] mr-1"></span>Завершено {{ pct_done }}%</span>
+        <span><span class="inline-block w-2 h-2 rounded-full bg-[#fbbf24] mr-1"></span>В процессе {{ pct_other }}%</span>
+        <span><span class="inline-block w-2 h-2 rounded-full bg-[#ef4444] mr-1"></span>Отменено {{ pct_cancel }}%</span>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ── 3. Daily Sales Chart ── -->
+<div class="admin-card p-6 mb-8">
+    <h3 class="text-lg font-bold text-[#3E2310] mb-4">📈 Динамика продаж по дням — {{ sel_month_name }} {{ sel_year }}</h3>
+    <div class="relative h-80">
+        <canvas id="dailyChart"></canvas>
+    </div>
+</div>
+
+<!-- ── 4 & 5: Top Products + Payment Methods ── -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+
+    <!-- Top Products Table + Chart -->
+    <div class="admin-card p-6">
+        <h3 class="text-lg font-bold text-[#3E2310] mb-4">🏆 Топ товаров (ABC)</h3>
+        {% if top_products %}
+        <div class="relative h-56 mb-4">
+            <canvas id="topProductsChart"></canvas>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-[#8C735F] text-xs uppercase tracking-wider border-b border-[#E0CCB7]">
+                        <th class="pb-2">#</th>
+                        <th class="pb-2">Товар</th>
+                        <th class="pb-2 text-right">Кол-во</th>
+                        <th class="pb-2 text-right">Выручка</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in top_products %}
+                    <tr class="border-b border-[#F2E8DC] last:border-0">
+                        <td class="py-2 text-[#8C735F] font-bold">{{ loop.index }}</td>
+                        <td class="py-2 font-semibold text-[#3E2310]">{{ p.name }}</td>
+                        <td class="py-2 text-right text-[#8C735F]">{{ p.qty }} шт</td>
+                        <td class="py-2 text-right font-bold text-[#3E2310]">{{ p.revenue | number_format }} сум</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-sm text-[#8C735F]">Нет данных за выбранный период</p>
+        {% endif %}
+    </div>
+
+    <!-- Payment Methods -->
+    <div class="admin-card p-6">
+        <h3 class="text-lg font-bold text-[#3E2310] mb-4">💳 Способы оплаты</h3>
+        {% if payment_stats %}
+        <div class="relative h-56 mb-4 flex justify-center">
+            <canvas id="paymentChart"></canvas>
+        </div>
+        <div class="space-y-3">
+            {% for ps in payment_stats %}
+            <div class="flex items-center justify-between bg-[#F9F4EF] rounded-xl px-4 py-3">
+                <div class="flex items-center gap-3">
+                    {% if ps.method == 'Payme' %}
+                    <div class="w-8 h-8 rounded-lg bg-[#00CCCC] flex items-center justify-center text-white text-xs font-bold">P</div>
+                    {% elif ps.method == 'Click' %}
+                    <div class="w-8 h-8 rounded-lg bg-[#F59E0B] flex items-center justify-center text-white text-xs font-bold">C</div>
+                    {% else %}
+                    <div class="w-8 h-8 rounded-lg bg-[#10B981] flex items-center justify-center text-white text-xs font-bold">₮</div>
+                    {% endif %}
+                    <div>
+                        <p class="font-bold text-[#3E2310]">{{ ps.method }}</p>
+                        <p class="text-xs text-[#8C735F]">{{ ps.count }} заказов</p>
+                    </div>
+                </div>
+                <p class="font-bold text-[#3E2310]">{{ ps.amount | number_format }} сум</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-[#8C735F]">Нет данных за выбранный период</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ── Charts JS ── -->
+<script>
+// 3. Daily sales chart
+const dailyCtx = document.getElementById('dailyChart').getContext('2d');
+new Chart(dailyCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ daily_labels | tojson }},
+        datasets: [
+            {
+                label: 'Выручка (сум)',
+                data: {{ daily_revenue | tojson }},
+                backgroundColor: 'rgba(107, 63, 30, 0.7)',
+                borderRadius: 6,
+                yAxisID: 'y',
+                order: 2,
+            },
+            {
+                label: 'Кол-во заказов',
+                data: {{ daily_count | tojson }},
+                type: 'line',
+                borderColor: '#3B82F6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                borderWidth: 2,
+                tension: 0.35,
+                fill: true,
+                yAxisID: 'y1',
+                pointRadius: 3,
+                pointBackgroundColor: '#3B82F6',
+                order: 1,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+            x: {
+                grid: { display: false },
+                ticks: { font: { size: 10 } }
+            },
+            y: {
+                type: 'linear', position: 'left',
+                title: { display: true, text: 'Сумма (сум)', font: { size: 11 } },
+                grid: { color: 'rgba(0,0,0,0.05)' },
+                ticks: {
+                    callback: function(v) {
+                        if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+                        if (v >= 1000) return (v / 1000).toFixed(0) + 'K';
+                        return v;
+                    }
+                }
+            },
+            y1: {
+                type: 'linear', position: 'right',
+                title: { display: true, text: 'Кол-во', font: { size: 11 } },
+                grid: { drawOnChartArea: false },
+            }
+        },
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function(ctx) {
+                        if (ctx.dataset.yAxisID === 'y') {
+                            return ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('ru-RU') + ' сум';
+                        }
+                        return ctx.dataset.label + ': ' + ctx.parsed.y;
+                    }
+                }
+            }
+        }
+    }
+});
+
+// 4. Top products horizontal bar
+{% if top_prod_labels | length > 0 %}
+const topCtx = document.getElementById('topProductsChart').getContext('2d');
+new Chart(topCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ top_prod_labels | tojson }},
+        datasets: [{
+            label: 'Выручка (сум)',
+            data: {{ top_prod_rev | tojson }},
+            backgroundColor: [
+                '#6B3F1E', '#8B5A2B', '#A67B5B', '#C19A6B', '#DDBEA9', '#E8D5C4', '#F2E8DC'
+            ],
+            borderRadius: 6,
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: function(ctx) {
+                        return ctx.parsed.x.toLocaleString('ru-RU') + ' сум';
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                ticks: {
+                    callback: function(v) {
+                        if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+                        if (v >= 1000) return (v / 1000).toFixed(0) + 'K';
+                        return v;
+                    }
+                }
+            },
+            y: {
+                ticks: { font: { size: 11 } }
+            }
+        }
+    }
+});
+{% endif %}
+
+// 5. Payment methods doughnut
+{% if pay_labels | length > 0 %}
+const payCtx = document.getElementById('paymentChart').getContext('2d');
+new Chart(payCtx, {
+    type: 'doughnut',
+    data: {
+        labels: {{ pay_labels | tojson }},
+        datasets: [{
+            data: {{ pay_amount | tojson }},
+            backgroundColor: ['#10B981', '#F59E0B', '#00CCCC', '#EF4444'],
+            hoverOffset: 6,
+            borderWidth: 2,
+            borderColor: '#fff',
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%',
+        plugins: {
+            legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } },
+            tooltip: {
+                callbacks: {
+                    label: function(ctx) {
+                        const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                        const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+                        return ctx.label + ': ' + ctx.parsed.toLocaleString('ru-RU') + ' сум (' + pct + '%)';
+                    }
+                }
+            }
+        }
+    }
+});
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "admin/base.html" %}
+{% block header %}Журнал действий{% endblock %}
+
+{% block content %}
+<!-- ====== MOBILE CARDS VIEW ====== -->
+<div class="mobile-cards space-y-3" style="display:none">
+    {% for log in logs %}
+    <div class="glass-card rounded-xl p-3.5">
+        <div class="flex items-start justify-between mb-1.5">
+            <span class="chip bg-[#6B3F1E]/10 text-[#6B3F1E]">{{ log.action }}</span>
+            <span class="text-[10px] text-[#8C735F]">{{ log.created_at | datetime_uz }}</span>
+        </div>
+        <div class="flex items-center justify-between text-xs mb-1">
+            <span class="font-semibold text-[#3E2310]">{{ log.user.username if log.user else '—' }}</span>
+            <span class="text-[#8C735F]">{{ log.entity_type or '' }} {% if log.entity_id %}#{{ log.entity_id }}{% endif %}</span>
+        </div>
+        {% if log.details %}
+        <div class="text-[10px] text-[#8C735F] mt-1 truncate">{{ log.details }}</div>
+        {% endif %}
+        <div class="text-[10px] text-[#8C735F]/60 mt-1">IP: {{ log.ip_address or '—' }}</div>
+    </div>
+    {% else %}
+    <div class="glass-card rounded-xl p-6 text-center text-[#8C735F] text-sm">Логов пока нет</div>
+    {% endfor %}
+</div>
+
+<!-- ====== DESKTOP TABLE VIEW ====== -->
+<div class="glass-card overflow-hidden responsive-table">
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-[#3E2310]/5">
+                <tr>
+                    <th class="px-4 py-3 text-left text-[10px] font-bold text-[#8C735F] uppercase tracking-wider">Дата</th>
+                    <th class="px-4 py-3 text-left text-[10px] font-bold text-[#8C735F] uppercase tracking-wider">Пользователь</th>
+                    <th class="px-4 py-3 text-left text-[10px] font-bold text-[#8C735F] uppercase tracking-wider">Действие</th>
+                    <th class="px-4 py-3 text-left text-[10px] font-bold text-[#8C735F] uppercase tracking-wider">Объект</th>
+                    <th class="px-4 py-3 text-left text-[10px] font-bold text-[#8C735F] uppercase tracking-wider">IP</th>
+                    <th class="px-4 py-3 text-left text-[10px] font-bold text-[#8C735F] uppercase tracking-wider">Детали</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-[#F2E8DC]">
+                {% for log in logs %}
+                <tr class="hover:bg-[#FCF9F5]/60">
+                    <td class="px-4 py-3 text-xs text-[#8C735F] whitespace-nowrap">{{ log.created_at | datetime_uz }}</td>
+                    <td class="px-4 py-3 text-xs font-semibold">{{ log.user.username if log.user else '—' }}</td>
+                    <td class="px-4 py-3"><span class="chip bg-[#6B3F1E]/10 text-[#6B3F1E]">{{ log.action }}</span></td>
+                    <td class="px-4 py-3 text-xs">{{ log.entity_type or '' }} {% if log.entity_id %}#{{ log.entity_id }}{% endif %}</td>
+                    <td class="px-4 py-3 text-xs text-[#8C735F]">{{ log.ip_address or '—' }}</td>
+                    <td class="px-4 py-3 text-xs text-[#8C735F] max-w-xs truncate">{{ log.details or '' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="px-4 py-8 text-center text-[#8C735F]">Логов пока нет</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if total_pages > 1 %}
+<div class="flex justify-center gap-2 mt-4 md:mt-6">
+    {% if page > 1 %}<a href="?page={{ page - 1 }}" class="admin-btn text-xs">← Назад</a>{% endif %}
+    <span class="px-3 py-2 text-sm font-bold text-[#8C735F]">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}<a href="?page={{ page + 1 }}" class="admin-btn text-xs">Вперед →</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

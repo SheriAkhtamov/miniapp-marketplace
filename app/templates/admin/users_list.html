@@ -1,0 +1,154 @@
+{% extends "admin/base.html" %}
+
+{% block header %}Клиенты{% endblock %}
+
+{% block content %}
+<div class="glass-card rounded-2xl p-3 md:p-6 mb-4 md:mb-6">
+    <h4 class="font-bold mb-3 md:mb-4 text-[#3E2310] text-sm md:text-base">Поиск пользователя</h4>
+    <form action="/admin/users" method="GET" class="flex flex-col gap-2 md:gap-4 xl:flex-row xl:items-end">
+        <div class="flex-grow">
+            <label class="block text-[#8C735F] text-xs font-bold uppercase tracking-wider mb-1.5">Имя, ID или телефон</label>
+            <input name="q" type="text" value="{{ filters.q }}" 
+                   class="admin-input w-full" placeholder="Введите имя, ID или номер...">
+        </div>
+        <div>
+            <label class="block text-[#8C735F] text-xs font-bold uppercase tracking-wider mb-1.5">Долги</label>
+            <select name="debt" class="admin-input w-full md:w-auto">
+                <option value="all" {% if filters.debt == 'all' %}selected{% endif %}>Все</option>
+                <option value="with" {% if filters.debt == 'with' %}selected{% endif %}>С долгом</option>
+                <option value="without" {% if filters.debt == 'without' %}selected{% endif %}>Без долга</option>
+            </select>
+        </div>
+        <div class="flex gap-2 items-center">
+            <button class="flex-1 md:flex-none bg-[#3E2310] hover:bg-[#543116] text-white font-bold py-2 px-4 rounded-xl text-sm" type="submit">
+                Найти
+            </button>
+            <a href="/admin/users" class="text-sm font-semibold text-[#6B3F1E] hover:text-[#543116]">Сбросить</a>
+        </div>
+    </form>
+</div>
+
+<!-- ====== MOBILE CARDS VIEW ====== -->
+<div class="mobile-cards space-y-3 my-4" style="display:none">
+    {% for u in users %}
+    <div class="glass-card rounded-xl p-3.5">
+        <div class="flex items-center justify-between mb-2">
+            <div>
+                <span class="font-bold text-[#3E2310] text-sm">{{ u.username or "Без имени" }}</span>
+                <span class="text-xs text-[#8C735F] ml-1">ID: {{ u.id }}</span>
+            </div>
+            {% set debt_value = u.debt or 0 %}
+            {% if debt_value > 0 %}
+            <span class="bg-red-200 text-red-600 py-0.5 px-2.5 rounded-full text-xs font-bold">{{ debt_value | number_format }} сум</span>
+            {% else %}
+            <span class="bg-green-200 text-green-600 py-0.5 px-2.5 rounded-full text-[10px] font-bold">Нет долгов</span>
+            {% endif %}
+        </div>
+        <div class="flex items-center justify-between">
+            <span class="text-xs text-[#8C735F]"><i class="fas fa-phone text-[10px] mr-1"></i>{{ u.phone or "-" }}</span>
+            <button onclick='openDebtModal({{ u.id|tojson }}, {{ (u.username or "")|tojson }}, {{ (u.debt or 0)|tojson }})'
+                    class="text-[#3E2310] hover:text-[#543116] font-bold border border-[#E0CCB7] rounded-xl px-3 py-1.5 text-xs hover:bg-[#F2E8DC]">
+                Долг
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+    {% if not users %}
+    <div class="glass-card rounded-xl p-6 text-center text-[#8C735F] text-sm">Пользователи не найдены</div>
+    {% endif %}
+</div>
+
+<!-- ====== DESKTOP TABLE VIEW ====== -->
+<div class="bg-white shadow-coffee rounded-2xl my-4 md:my-6 overflow-hidden glass-card responsive-table">
+    <div class="overflow-x-auto">
+        <table class="min-w-full table-auto">
+            <thead>
+                <tr class="bg-[#EFE6DB] text-[#3E2310] uppercase text-sm leading-normal font-bold">
+                    <th class="py-3 px-6 text-left">ID</th>
+                    <th class="py-3 px-6 text-left">Клиент</th>
+                    <th class="py-3 px-6 text-left">Телефон</th>
+                    <th class="py-3 px-6 text-center">Долг (сум)</th>
+                    <th class="py-3 px-6 text-center">Действия</th>
+                </tr>
+            </thead>
+            <tbody class="text-[#3E2310] text-sm font-medium">
+                {% for user in users %}
+                <tr class="border-b border-[#EFE6DB] hover:bg-[#F9F4EF]">
+                    <td class="py-3 px-6 text-left">{{ user.id }}</td>
+                    <td class="py-3 px-6 text-left">
+                        <div class="flex items-center">
+                            <span class="font-medium">{{ user.username or "Без имени" }}</span>
+                        </div>
+                    </td>
+                    <td class="py-3 px-6 text-left">{{ user.phone or "-" }}</td>
+                    <td class="py-3 px-6 text-center">
+                        {% set debt_value = user.debt or 0 %}
+                        {% if debt_value > 0 %}
+                        <span class="bg-red-200 text-red-600 py-1 px-3 rounded-full text-xs font-bold">
+                            {{ debt_value | number_format }}
+                        </span>
+                        {% else %}
+                        <span class="bg-green-200 text-green-600 py-1 px-3 rounded-full text-xs">Нет долгов</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        <button onclick='openDebtModal({{ user.id|tojson }}, {{ (user.username or "")|tojson }}, {{ (user.debt or 0)|tojson }})' 
+                                class="text-[#3E2310] hover:text-[#543116] font-bold border border-[#E0CCB7] rounded-xl px-3 py-1 text-xs hover:bg-[#F2E8DC]">
+                            Управлять долгом
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if not users %}
+    <div class="p-6 text-center text-[#8C735F] text-sm">Пользователи не найдены</div>
+    {% endif %}
+</div>
+
+<!-- Модальное окно -->
+<div id="debtModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden overflow-y-auto h-full w-full" style="z-index: 50;">
+    <div class="relative top-20 mx-auto p-6 w-96 max-w-[90vw] glass-card">
+        <h3 class="text-lg font-bold text-[#3E2310] mb-1" id="modalTitle">Управление долгом</h3>
+        <p class="text-sm text-[#8C735F] mb-4">
+            Укажите сумму долга для <b class="text-[#3E2310]" id="modalUser"></b>.
+            Если 0 — долг будет снят.
+        </p>
+        <form id="debtForm" method="POST" action="">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="number" name="amount" id="debtAmount" 
+                   class="admin-input w-full mb-4" 
+                   placeholder="Сумма (сум)" required min="0">
+            <button id="okBtn" type="submit" class="admin-btn-accent w-full mb-2">
+                Сохранить
+            </button>
+            <button type="button" onclick="closeDebtModal()"
+                class="w-full py-2.5 px-4 bg-[#F2E8DC] text-[#3E2310] font-bold text-sm rounded-xl hover:bg-[#E0CCB7] transition">
+                Отмена
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openDebtModal(userId, username, currentDebt) {
+        document.getElementById('debtModal').classList.remove('hidden');
+        document.getElementById('modalUser').innerText = username;
+        document.getElementById('debtAmount').value = currentDebt;
+        document.getElementById('debtForm').action = "/admin/users/" + userId + "/set_debt";
+    }
+
+    function closeDebtModal() {
+        document.getElementById('debtModal').classList.add('hidden');
+    }
+    
+    // Close modal on outside click
+    window.onclick = function(event) {
+        var modal = document.getElementById('debtModal');
+        if (event.target == modal) {
+            closeDebtModal();
+        }
+    }
+</script>
+{% endblock %}

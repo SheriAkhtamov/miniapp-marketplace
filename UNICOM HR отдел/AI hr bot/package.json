@@ -1,0 +1,30 @@
+{
+  "name": "hr-questionnaire-telegram-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "server:dev": "node --watch server/index.js",
+    "client:dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "start": "node server/index.js",
+    "check": "npm run check:server && npm run build",
+    "check:server": "node --check server/index.js && node --check server/config.js && node --check server/db.js && node --check server/bot.js && node --check server/botRuntime.js && node --check server/routes.js && node --check server/sessionStore.js && node --check server/settingsStore.js"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.0.4",
+    "better-sqlite3": "^12.4.1",
+    "concurrently": "^9.2.1",
+    "express": "^5.1.0",
+    "express-session": "^1.18.2",
+    "helmet": "^8.1.0",
+    "lucide-react": "^0.545.0",
+    "morgan": "^1.10.1",
+    "pg": "^8.22.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "telegraf": "^4.16.3",
+    "vite": "^7.1.9"
+  }
+}

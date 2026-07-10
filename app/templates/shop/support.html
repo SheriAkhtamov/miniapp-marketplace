@@ -1,0 +1,275 @@
+{% extends "shop/base.html" %}
+
+{% block content %}
+<div class="sticky top-0 page-header z-30 px-4 py-3 flex items-center">
+    <a href="/shop/profile"
+        class="mr-3 w-10 h-10 bg-white rounded-xl flex items-center justify-center text-[#3E2310] shadow-sm active:scale-90 transition">
+        <i class="fas fa-arrow-left text-sm"></i>
+    </a>
+    <h1 class="text-lg font-extrabold text-[#3E2310]">{{ tr('support_title', user.language) }}</h1>
+</div>
+
+<div id="chat-container" class="px-4 pb-[140px] pt-2 space-y-2 min-h-[60vh]">
+    {% if has_older %}
+    <div id="load-older-wrap" class="text-center py-2">
+        <button id="load-older-btn" onclick="loadOlderMessages()" class="text-xs text-[#6B3F1E] font-bold bg-white/80 px-4 py-2 rounded-full shadow-sm active:scale-95 transition">
+            <i class="fas fa-arrow-up mr-1"></i> {{ tr('support_load_older', user.language) if tr else 'Загрузить ранние' }}
+        </button>
+    </div>
+    {% endif %}
+
+    {% if not messages %}
+    <div id="empty-hint" class="text-center py-12">
+        <div class="text-4xl mb-3 opacity-30">💬</div>
+        <p class="text-[#8C735F] text-sm font-medium">{{ tr('support_empty', user.language) }}</p>
+    </div>
+    {% endif %}
+
+    {% for msg in messages %}
+    <div class="flex {% if msg.sender_type == 'user' %}justify-end{% else %}justify-start{% endif %}">
+        <div class="max-w-[80%] {% if msg.sender_type == 'user' %}bg-[#3E2310] text-white{% else %}bg-white text-[#3E2310] shadow-sm{% endif %} rounded-2xl px-3.5 py-2.5 {% if msg.sender_type == 'user' %}rounded-br-md{% else %}rounded-bl-md{% endif %}">
+            {% if msg.image_path %}
+            <a href="{{ msg.image_path | support_image_url }}" target="_blank">
+                <img src="{{ msg.image_path | support_image_url }}" class="rounded-xl max-w-full max-h-48 mb-1.5" loading="lazy">
+            </a>
+            {% endif %}
+            {% if msg.text %}
+            <p class="text-[13px] leading-relaxed whitespace-pre-wrap">{{ msg.text }}</p>
+            {% endif %}
+            <span class="text-[10px] {% if msg.sender_type == 'user' %}text-white/50{% else %}text-[#8C735F]{% endif %} block text-right mt-0.5">{{ msg.created_at.strftime('%H:%M') }}</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Input area -->
+<div class="fixed bottom-0 left-0 right-0 z-40 bg-[#F2E8DC] border-t border-[#E0CCB7]/50" style="padding-bottom: calc(var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)) + 60px);">
+    <form id="supportForm" class="flex items-end gap-2 px-3 py-2.5">
+        <label class="flex-shrink-0 w-10 h-10 bg-white rounded-xl flex items-center justify-center cursor-pointer active:scale-90 transition shadow-sm">
+            <input type="file" id="imageInput" accept="image/*" class="hidden">
+            <i class="fas fa-camera text-[#8C735F] text-sm"></i>
+        </label>
+        <div class="flex-1 relative">
+            <textarea id="msgInput" rows="1"
+                class="w-full input-surface px-3.5 py-2.5 text-sm font-medium resize-none max-h-24 focus:outline-none"
+                placeholder="{{ tr('support_placeholder', user.language) }}"
+                style="min-height:40px;"></textarea>
+        </div>
+        <button type="submit" id="sendBtn"
+            class="flex-shrink-0 w-10 h-10 bg-[#3E2310] text-white rounded-xl flex items-center justify-center active:scale-90 transition shadow-sm">
+            <i class="fas fa-paper-plane text-sm"></i>
+        </button>
+    </form>
+    <div id="imagePreview" class="hidden px-3 pb-2">
+        <div class="relative inline-block">
+            <img id="previewImg" class="h-16 rounded-lg">
+            <button type="button" id="removeImage" class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const container = document.getElementById('chat-container');
+    const form = document.getElementById('supportForm');
+    const input = document.getElementById('msgInput');
+    const imageInput = document.getElementById('imageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const preview = document.getElementById('imagePreview');
+    const previewImg = document.getElementById('previewImg');
+    const removeBtn = document.getElementById('removeImage');
+    const emptyHint = document.getElementById('empty-hint');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    let lastMsgId = {{ (messages[-1].id if messages else 0) }};
+    let oldestId = {{ oldest_id|default(0) }};
+    let hasOlder = {{ 'true' if has_older else 'false' }};
+    let selectedFile = null;
+    let polling = null;
+
+    function scrollBottom() {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+    scrollBottom();
+
+    // Auto-resize textarea
+    input.addEventListener('input', function() {
+        this.style.height = '40px';
+        this.style.height = Math.min(this.scrollHeight, 96) + 'px';
+    });
+
+    // Image selection
+    imageInput.addEventListener('change', function() {
+        const file = this.files[0];
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) {
+            alert('{{ tr("support_photo_too_large", user.language) }}');
+            this.value = '';
+            return;
+        }
+        selectedFile = file;
+        previewImg.src = URL.createObjectURL(file);
+        preview.classList.remove('hidden');
+    });
+
+    removeBtn.addEventListener('click', function() {
+        selectedFile = null;
+        imageInput.value = '';
+        preview.classList.add('hidden');
+    });
+
+    function addMessageBubble(msg) {
+        if (emptyHint) emptyHint.remove();
+        const isUser = msg.sender_type === 'user';
+        const wrap = document.createElement('div');
+        wrap.className = 'flex ' + (isUser ? 'justify-end' : 'justify-start');
+        let html = '<div class="max-w-[80%] ' +
+            (isUser ? 'bg-[#3E2310] text-white' : 'bg-white text-[#3E2310] shadow-sm') +
+            ' rounded-2xl px-3.5 py-2.5 ' + (isUser ? 'rounded-br-md' : 'rounded-bl-md') + '">';
+        if (msg.image_path) {
+            const imgUrl = '/shop/support/image/' + msg.image_path.replace(/\\/g, '/').split('/').pop();
+            html += '<a href="' + imgUrl + '" target="_blank"><img src="' + imgUrl + '" class="rounded-xl max-w-full max-h-48 mb-1.5" loading="lazy"></a>';
+        }
+        if (msg.text) {
+            html += '<p class="text-[13px] leading-relaxed whitespace-pre-wrap">' + escapeHtml(msg.text) + '</p>';
+        }
+        html += '<span class="text-[10px] ' + (isUser ? 'text-white/50' : 'text-[#8C735F]') + ' block text-right mt-0.5">' + msg.created_at + '</span>';
+        html += '</div>';
+        wrap.innerHTML = html;
+        container.appendChild(wrap);
+        scrollBottom();
+    }
+
+    function escapeHtml(t) {
+        const d = document.createElement('div');
+        d.textContent = t;
+        return d.innerHTML;
+    }
+
+    // Send message
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const text = input.value.trim();
+        if (!text && !selectedFile) return;
+
+        sendBtn.disabled = true;
+        const fd = new FormData();
+        fd.append('text', text);
+        fd.append('csrf_token', csrfToken);
+        if (selectedFile) fd.append('image', selectedFile);
+
+        try {
+            const res = await fetch('/shop/api/support/send', {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': csrfToken },
+                body: fd
+            });
+            const data = await res.json();
+            if (data.ok) {
+                addMessageBubble(data.message);
+                lastMsgId = data.message.id;
+                input.value = '';
+                input.style.height = '40px';
+                selectedFile = null;
+                imageInput.value = '';
+                preview.classList.add('hidden');
+            }
+        } catch(err) {
+            console.error(err);
+        } finally {
+            sendBtn.disabled = false;
+        }
+    });
+
+    // Polling for new messages
+    async function pollMessages() {
+        try {
+            const res = await fetch('/shop/api/support/messages?after=' + lastMsgId);
+            const data = await res.json();
+            if (data.messages && data.messages.length > 0) {
+                data.messages.forEach(function(m) {
+                    if (m.id > lastMsgId) {
+                        addMessageBubble(m);
+                        lastMsgId = m.id;
+                    }
+                });
+            }
+        } catch(e) {}
+    }
+
+    polling = setInterval(pollMessages, 4000);
+
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            clearInterval(polling);
+        } else {
+            pollMessages();
+            polling = setInterval(pollMessages, 4000);
+        }
+    });
+
+    // --- Load older messages (pagination) ---
+    function makeBubbleEl(msg) {
+        const isUser = msg.sender_type === 'user';
+        const wrap = document.createElement('div');
+        wrap.className = 'flex ' + (isUser ? 'justify-end' : 'justify-start');
+        let html = '<div class="max-w-[80%] ' +
+            (isUser ? 'bg-[#3E2310] text-white' : 'bg-white text-[#3E2310] shadow-sm') +
+            ' rounded-2xl px-3.5 py-2.5 ' + (isUser ? 'rounded-br-md' : 'rounded-bl-md') + '">';
+        if (msg.image_path) {
+            const imgUrl = '/shop/support/image/' + msg.image_path.replace(/\\/g, '/').split('/').pop();
+            html += '<a href="' + imgUrl + '" target="_blank"><img src="' + imgUrl + '" class="rounded-xl max-w-full max-h-48 mb-1.5" loading="lazy"></a>';
+        }
+        if (msg.text) {
+            html += '<p class="text-[13px] leading-relaxed whitespace-pre-wrap">' + escapeHtml(msg.text) + '</p>';
+        }
+        html += '<span class="text-[10px] ' + (isUser ? 'text-white/50' : 'text-[#8C735F]') + ' block text-right mt-0.5">' + msg.created_at + '</span>';
+        html += '</div>';
+        wrap.innerHTML = html;
+        return wrap;
+    }
+
+    async function _loadOlder() {
+        if (!hasOlder || !oldestId) return;
+        const btn = document.getElementById('load-older-btn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> ...'; }
+        try {
+            const res = await fetch('/shop/api/support/messages?before=' + oldestId);
+            const data = await res.json();
+            if (data.messages && data.messages.length > 0) {
+                const scrollH = document.body.scrollHeight;
+                const scrollY = window.scrollY;
+                // Insert older messages at top (after the load-older button)
+                const anchor = document.getElementById('load-older-wrap') || container.firstChild;
+                const frag = document.createDocumentFragment();
+                data.messages.forEach(function(m) {
+                    frag.appendChild(makeBubbleEl(m));
+                });
+                if (anchor && anchor.nextSibling) {
+                    container.insertBefore(frag, anchor.nextSibling);
+                } else {
+                    container.appendChild(frag);
+                }
+                oldestId = data.messages[0].id;
+                // Preserve scroll position
+                window.scrollTo(0, scrollY + (document.body.scrollHeight - scrollH));
+            }
+            hasOlder = !!data.has_older;
+            if (!hasOlder) {
+                const wrap = document.getElementById('load-older-wrap');
+                if (wrap) wrap.remove();
+            } else if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-arrow-up mr-1"></i> Загрузить ранние';
+            }
+        } catch(e) {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-arrow-up mr-1"></i> Загрузить ранние'; }
+        }
+    }
+    window.loadOlderMessages = _loadOlder;
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,22 @@
+{
+  "server": {
+    "port": 3000,
+    "appBaseUrl": "http://localhost:3000",
+    "databasePath": "./data/hr-bot.sqlite"
+  },
+  "workspace": {
+    "marketBaseUrl": "http://localhost:8000",
+    "marketWorkspaceUrl": "http://localhost:8000/admin",
+    "hrWorkspaceUrl": "http://localhost:3000"
+  },
+  "telegram": {
+    "botToken": "replace-with-token-from-botfather"
+  },
+  "postgres": {
+    "host": "db",
+    "port": 5432,
+    "user": "postgres",
+    "password": "postgres",
+    "database": "shop_db"
+  }
+}

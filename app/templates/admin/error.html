@@ -1,0 +1,18 @@
+{% extends "admin/base.html" %}
+
+{% block header %}Ошибка{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto text-center py-16">
+    <div class="glass-card p-8">
+        <div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-exclamation-triangle text-red-500 text-2xl"></i>
+        </div>
+        <h2 class="text-xl font-extrabold text-[#3E2310] mb-2">{{ message or "Произошла ошибка" }}</h2>
+        <p class="text-[#8C735F] text-sm mb-6">Пожалуйста, вернитесь назад или обратитесь к администратору.</p>
+        <a href="/admin" class="admin-btn-accent inline-flex items-center gap-2">
+            <i class="fas fa-arrow-left text-xs"></i> Вернуться
+        </a>
+    </div>
+</div>
+{% endblock %}

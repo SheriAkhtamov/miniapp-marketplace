@@ -1,0 +1,650 @@
+{% extends "shop/base.html" %}
+
+{% block content %}
+<div class="sticky top-0 page-header z-30 px-4 py-3 flex items-center">
+    <a href="/shop/cart"
+        class="mr-3 w-10 h-10 bg-white rounded-xl flex items-center justify-center text-[#3E2310] shadow-sm active:scale-90 transition">
+        <i class="fas fa-arrow-left text-sm"></i>
+    </a>
+    <h1 class="text-lg font-extrabold text-[#3E2310]">{{ tr('checkout_title', user.language) }}</h1>
+</div>
+
+<form action="/shop/order/create" method="POST" enctype="multipart/form-data" class="px-4 pb-nav">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="delivery_latitude" id="delivery-latitude">
+    <input type="hidden" name="delivery_longitude" id="delivery-longitude">
+    <input type="hidden" name="delivery_location_source" id="delivery-location-source">
+    {% for item_id in item_ids %}
+    <input type="hidden" name="item_ids" value="{{ item_id }}">
+    {% endfor %}
+
+    <!-- Summary Card -->
+    <div class="card-surface p-4 mb-5 mt-2">
+        <p class="font-bold text-[#8C735F] text-[10px] uppercase tracking-wider mb-1">{{ tr('your_order', user.language) }}</p>
+        <div class="flex justify-between items-baseline mb-3">
+            <span class="text-2xl font-extrabold text-[#3E2310] tabular-nums"><span id="total-display">{{ total_amount | number_format }}</span> <span class="text-sm font-bold text-[#8C735F]">{{ tr('sum', user.language) }}</span></span>
+            <span class="text-[#8C735F] text-sm font-medium">{{ total_count }} {{ tr('items_count', user.language) }}</span>
+        </div>
+        <div class="space-y-1.5 border-t border-dashed border-[#E0CCB7]/60 pt-3 text-sm">
+            <div class="flex justify-between">
+                <span class="text-[#8C735F]">{{ tr('items', user.language) }}</span>
+                <span class="font-bold text-[#3E2310] tabular-nums">{{ product_total | number_format }} {{ tr('sum', user.language) }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-[#8C735F]">{{ tr('delivery', user.language) }}</span>
+                <span id="delivery-price-display" class="font-bold text-[#3E2310] tabular-nums">{{ delivery_price | number_format }} {{ tr('sum', user.language) }}</span>
+            </div>
+            <div id="promo-discount-row" class="hidden flex justify-between">
+                <span class="text-green-600 font-bold">{{ tr('discount', user.language) }}</span>
+                <span id="promo-discount-amount" class="text-green-600 font-extrabold tabular-nums"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delivery Method -->
+    <div class="mb-6">
+        <h3 class="font-bold text-[#3E2310] text-base mb-3">{{ tr('where_pickup', user.language) }}</h3>
+        <div class="grid grid-cols-2 gap-2.5">
+            <label class="{% if pickup_enabled %}cursor-pointer{% else %}cursor-not-allowed{% endif %}">
+                <input type="radio" name="delivery_method" value="pickup" class="peer hidden" {% if pickup_enabled %}checked{% else %}disabled{% endif %}
+                    onchange="toggleDeliveryFields()">
+                <div
+                    class="card-surface border-2 border-transparent peer-checked:border-[#3E2310] p-3.5 text-center transition-all {% if not pickup_enabled %}opacity-50{% endif %}">
+                    <div class="text-xl mb-1">🏃</div>
+                    <span class="font-bold text-[#3E2310] text-sm">{{ tr('pickup', user.language) }}</span>
+                    {% if not pickup_enabled %}
+                    <span class="block text-[10px] text-red-500 font-bold mt-1">{{ tr('temporarily_unavailable', user.language) }}</span>
+                    {% endif %}
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="delivery_method" value="delivery" class="peer hidden" {% if not pickup_enabled %}checked{% endif %}
+                    onchange="toggleDeliveryFields()">
+                <div
+                    class="card-surface border-2 border-transparent peer-checked:border-[#3E2310] p-3.5 text-center transition-all">
+                    <div class="text-xl mb-1">🚚</div>
+                    <span class="font-bold text-[#3E2310] text-sm">{{ tr('delivery', user.language) }}</span>
+                </div>
+            </label>
+        </div>
+
+        <!-- Branch Address -->
+        <div id="branch-block"
+            class="mt-3 p-3.5 bg-[#F7F5F2] rounded-xl text-[#3E2310] text-sm flex items-start gap-2.5 border border-[#E0CCB7]/30">
+            <i class="fas fa-map-pin mt-0.5 text-[#6B3F1E] text-sm"></i>
+            <div>
+                <span class="font-bold block mb-0.5 text-[13px]">{{ tr('our_address', user.language) }}</span>
+                <span class="text-[12px] text-[#8C735F]">{{ pickup_address }}</span>
+            </div>
+        </div>
+
+        <!-- Address Input -->
+        <div id="address-block" class="mt-3 hidden">
+            <div class="mb-3 space-y-2">
+                <label class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider ml-0.5">{{ tr('delivery_option', user.language) }}</label>
+                {% for option in delivery_options %}
+                <label class="flex items-center justify-between gap-3 card-surface p-3 cursor-pointer border-2 border-transparent has-[:checked]:border-[#3E2310] transition">
+                    <span>
+                        <span class="block font-bold text-[#3E2310] text-sm">{{ option.name_ru if user.language == 'ru' else option.name_uz }}</span>
+                        <span class="block text-[11px] text-[#8C735F] font-semibold">
+                            {{ option.price | number_format }} {{ tr('sum', user.language) }}
+                        </span>
+                    </span>
+                    <input type="radio" name="delivery_option_id" value="{{ option.id }}" data-price="{{ option.price }}"
+                        class="delivery-option-radio" {% if loop.first %}checked{% endif %}
+                        onchange="recalculateCheckoutTotal()">
+                </label>
+                {% endfor %}
+            </div>
+            <textarea id="address-input" name="address"
+                class="w-full input-surface p-3.5 text-sm placeholder-[#B09B8B] focus:outline-none"
+                rows="3" placeholder="{{ tr('address_placeholder', user.language) }}"></textarea>
+
+            <div class="mt-2 rounded-2xl border border-[#E0CCB7]/70 bg-[#F9F4EF] p-3">
+                <button type="button" id="use-location-btn"
+                    class="w-full flex items-center justify-center gap-2 rounded-xl bg-white px-3 py-2.5 text-sm font-extrabold text-[#3E2310] shadow-sm active:scale-[0.98] transition">
+                    <i class="fas fa-location-crosshairs text-[#6B3F1E]"></i>
+                    <span>{{ tr('use_location', user.language) }}</span>
+                </button>
+                <p id="location-status" class="mt-2 text-[11px] font-semibold text-[#8C735F]">
+                    {{ tr('location_hint', user.language) }}
+                </p>
+            </div>
+
+            {% if saved_addresses %}
+            <div id="saved-address-picker" class="relative mt-3">
+                <button type="button" id="saved-address-trigger" aria-expanded="false" aria-controls="saved-address-menu"
+                    class="flex w-full items-center gap-3 rounded-2xl border border-[#E0CCB7]/70 bg-white p-3 text-left shadow-sm transition active:scale-[0.99]">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F2E8DC] text-[#6B3F1E]">
+                        <i class="fas fa-bookmark"></i>
+                    </span>
+                    <span class="min-w-0 flex-1">
+                        <span id="saved-address-value" data-placeholder="{{ tr('select_saved', user.language) }}"
+                            class="block truncate text-sm font-extrabold text-[#3E2310]">{{ tr('select_saved', user.language) }}</span>
+                        <span class="mt-0.5 block text-[11px] font-semibold text-[#8C735F]">{{ tr('saved_address_hint', user.language) }}</span>
+                    </span>
+                    <i id="saved-address-chevron" class="fas fa-chevron-down shrink-0 text-xs text-[#8C735F] transition-transform duration-200"></i>
+                </button>
+                <div id="saved-address-menu" role="listbox" aria-label="{{ tr('select_saved', user.language) }}"
+                    class="absolute z-20 mt-2 hidden max-h-56 w-full overflow-y-auto rounded-2xl border border-[#E0CCB7]/80 bg-[#FCF9F5] p-1.5 shadow-xl">
+                    {% for addr in saved_addresses %}
+                    <button type="button" role="option" aria-selected="false" data-address="{{ addr.address_text }}"
+                        class="saved-address-option flex w-full items-start gap-3 rounded-xl p-3 text-left transition hover:bg-white active:scale-[0.99]">
+                        <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[#6B3F1E] shadow-sm">
+                            <i class="fas fa-location-dot text-xs"></i>
+                        </span>
+                        <span class="min-w-0 flex-1 break-words text-[13px] font-bold leading-snug text-[#3E2310]">{{ addr.address_text }}</span>
+                        <i class="saved-address-check fas fa-check mt-1 hidden text-xs text-[#4A6B36]"></i>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Contact Info -->
+    <div class="mb-6">
+        <h3 class="font-bold text-[#3E2310] text-base mb-3">{{ tr('contact_info', user.language) }}</h3>
+        <div class="space-y-3">
+            <div>
+                <label class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider mb-1 ml-0.5">{{ tr('phone', user.language) }}</label>
+                <input type="tel" name="phone" value="{{ user.phone or '' }}"
+                    class="w-full input-surface p-3 text-sm font-bold focus:outline-none"
+                    required>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider mb-1 ml-0.5">{{ tr('comment', user.language) }}</label>
+                <input type="text" name="comment"
+                    class="w-full input-surface p-3 text-sm focus:outline-none"
+                    placeholder="{{ tr('comment_placeholder', user.language) }}">
+            </div>
+        </div>
+    </div>
+
+    <!-- Promo Code -->
+    <div class="mb-6">
+        <h3 class="font-bold text-[#3E2310] text-base mb-3">{{ tr('promo_code', user.language) }}</h3>
+        <div class="flex gap-2">
+            <input type="text" id="promo-input" placeholder="{{ tr('enter_promo', user.language) }}"
+                class="flex-1 input-surface p-3 text-sm font-bold focus:outline-none uppercase"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();applyPromo();}">
+            <button type="button" id="promo-apply-btn" onclick="applyPromo()"
+                class="px-4 py-3 bg-[#3E2310] text-white font-bold text-sm rounded-2xl active:scale-95 transition flex-shrink-0">
+                {{ tr('apply', user.language) }}
+            </button>
+        </div>
+        <input type="hidden" name="promo_code" id="promo-code-hidden" value="">
+        <div id="promo-result" class="mt-2 hidden">
+            <div id="promo-success" class="hidden bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded-xl text-sm font-medium flex items-center justify-between">
+                <span id="promo-message"></span>
+                <button type="button" onclick="clearPromo()" class="text-green-500 hover:text-green-700 font-bold ml-2">✕</button>
+            </div>
+            <div id="promo-error" class="hidden bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-xl text-sm font-medium"></div>
+        </div>
+    </div>
+
+    <!-- Payment -->
+    <div class="mb-6">
+        <h3 class="font-bold text-[#3E2310] text-base mb-3">{{ tr('payment', user.language) }}</h3>
+        <div class="card-surface overflow-hidden divide-y divide-[#F2E8DC]">
+            <label class="flex items-center p-3.5 cursor-pointer hover:bg-[#FCF9F5] transition">
+                <input type="radio" name="payment_method" value="cash"
+                    class="payment-radio" checked>
+                <span class="ml-3 font-bold text-[#3E2310] text-sm">💵 {{ tr('cash', user.language) }}</span>
+            </label>
+            <label class="flex items-center p-3.5 cursor-pointer hover:bg-[#FCF9F5] transition">
+                <input type="radio" name="payment_method" value="card"
+                    class="payment-radio">
+                <div class="ml-3">
+                    <span class="font-bold text-[#3E2310] text-sm">💳 {{ tr('online_payme', user.language) }}</span>
+                    <span class="block text-[10px] text-[#8C735F] font-bold uppercase tracking-wider mt-0.5">Uzcard / Humo</span>
+                </div>
+            </label>
+            <label class="flex items-center p-3.5 cursor-pointer hover:bg-[#FCF9F5] transition">
+                <input type="radio" name="payment_method" value="click"
+                    class="payment-radio">
+                <div class="ml-3">
+                    <span class="font-bold text-[#3E2310] text-sm">🔹 Click</span>
+                    <span class="block text-[10px] text-[#8C735F] font-bold uppercase tracking-wider mt-0.5">Uzcard / Humo</span>
+                </div>
+            </label>
+            <label class="flex items-center p-3.5 cursor-pointer hover:bg-[#FCF9F5] transition">
+                <input type="radio" name="payment_method" value="card_transfer"
+                    class="payment-radio">
+                <div class="ml-3">
+                    <span class="font-bold text-[#3E2310] text-sm">🏦 {{ tr('card_transfer', user.language) }}</span>
+                    <span class="block text-[10px] text-[#8C735F] font-bold uppercase tracking-wider mt-0.5">{{ tr('receipt_required_hint', user.language) }}</span>
+                </div>
+            </label>
+        </div>
+        <div id="card-transfer-block" class="hidden mt-3 rounded-2xl border border-[#E0CCB7] bg-[#F9F4EF] p-4">
+            <div class="space-y-2 text-sm">
+                <div>
+                    <span class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider">{{ tr('card_number', user.language) }}</span>
+                    <span class="font-extrabold text-[#3E2310] tabular-nums break-all">{{ card_transfer_details.card_number or tr('card_details_missing', user.language) }}</span>
+                </div>
+                <div>
+                    <span class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider">{{ tr('card_holder', user.language) }}</span>
+                    <span class="font-bold text-[#3E2310]">{{ card_transfer_details.card_holder or tr('card_details_missing', user.language) }}</span>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider mb-1">{{ tr('upload_receipt', user.language) }}</label>
+                    <input type="file" id="payment-receipt-input" name="payment_receipt" accept="image/jpeg,image/png,image/gif,image/webp"
+                        class="w-full input-surface p-3 text-sm text-[#3E2310] focus:outline-none">
+                    <p class="text-[11px] text-[#8C735F] font-medium mt-1">{{ tr('upload_receipt_hint', user.language) }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button type="submit"
+        class="w-full btn-secondary active:scale-[0.98] transition-transform">
+        <span>{{ tr('confirm_order', user.language) }}</span>
+        <i class="fas fa-check text-xs"></i>
+    </button>
+</form>
+{% if not user.phone %}
+<div id="phone-required-modal" class="fixed inset-0 z-[80] flex items-end px-4 pb-safe" role="dialog" aria-modal="true"
+    aria-labelledby="phone-required-title">
+    <div class="absolute inset-0 bg-[#3E2310]/45 backdrop-blur-sm"></div>
+    <section class="relative mb-4 w-full max-w-lg rounded-3xl bg-[#FCF9F5] p-5 shadow-2xl">
+        <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F2E8DC] text-[#6B3F1E]">
+            <i class="fas fa-mobile-screen-button text-xl"></i>
+        </div>
+        <h2 id="phone-required-title" class="text-center text-lg font-extrabold text-[#3E2310]">
+            {{ tr('phone_required_title', user.language) }}
+        </h2>
+        <p class="mt-2 text-center text-sm leading-relaxed text-[#8C735F]">
+            {{ tr('phone_required_hint', user.language) }}
+        </p>
+        <button type="button" onclick="openPhoneRequestBot()"
+            class="mt-5 w-full btn-secondary active:scale-[0.98] transition-transform">
+            <i class="fab fa-telegram-plane text-base"></i>
+            <span>{{ tr('phone_request_bot', user.language) }}</span>
+        </button>
+    </section>
+</div>
+{% endif %}
+<script>
+    function toggleDeliveryFields() {
+        const pickup = document.querySelector('input[name="delivery_method"][value="pickup"]');
+        const branchBlock = document.getElementById('branch-block');
+        const addressBlock = document.getElementById('address-block');
+        const addressInput = document.getElementById('address-input');
+
+        if (pickup && pickup.checked) {
+            if (branchBlock) branchBlock.classList.remove('hidden');
+            if (addressBlock) addressBlock.classList.add('hidden');
+            if (addressInput) addressInput.removeAttribute('required');
+            clearDeliveryLocation();
+        } else {
+            if (branchBlock) branchBlock.classList.add('hidden');
+            if (addressBlock) addressBlock.classList.remove('hidden');
+            if (addressInput) addressInput.setAttribute('required', '');
+        }
+        recalculateCheckoutTotal();
+    }
+
+    const PRODUCT_TOTAL = {{ product_total }};
+    let discountedProductTotal = PRODUCT_TOTAL;
+    let _appliedPromoId = null;
+
+    function formatNumber(n) {
+        return Number(n).toLocaleString('ru-RU').replace(/,/g, ' ').replace(/\u00a0/g, ' ');
+    }
+
+    function getSelectedDeliveryPrice() {
+        const delivery = document.querySelector('input[name="delivery_method"][value="delivery"]');
+        if (!delivery || !delivery.checked) return 0;
+        const option = document.querySelector('input[name="delivery_option_id"]:checked');
+        return option ? (parseInt(option.dataset.price) || 0) : 0;
+    }
+
+    function recalculateCheckoutTotal() {
+        const deliveryPrice = getSelectedDeliveryPrice();
+        const deliveryDisplay = document.getElementById('delivery-price-display');
+        const totalDisplay = document.getElementById('total-display');
+        if (deliveryDisplay) deliveryDisplay.textContent = formatNumber(deliveryPrice) + ' ' + T.sum;
+        if (totalDisplay) totalDisplay.textContent = formatNumber(discountedProductTotal + deliveryPrice);
+    }
+
+    function togglePaymentReceipt() {
+        const selected = document.querySelector('input[name="payment_method"]:checked');
+        const block = document.getElementById('card-transfer-block');
+        const input = document.getElementById('payment-receipt-input');
+        const isTransfer = selected && selected.value === 'card_transfer';
+        if (block) block.classList.toggle('hidden', !isTransfer);
+        if (input) {
+            if (isTransfer) input.setAttribute('required', '');
+            else input.removeAttribute('required');
+        }
+    }
+
+    async function applyPromo() {
+        const code = document.getElementById('promo-input').value.trim();
+        if (!code) return;
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const resultDiv = document.getElementById('promo-result');
+        const successDiv = document.getElementById('promo-success');
+        const errorDiv = document.getElementById('promo-error');
+        const discountRow = document.getElementById('promo-discount-row');
+
+        try {
+            const fd = new FormData();
+            fd.append('code', code);
+            fd.append('total', PRODUCT_TOTAL);
+            const res = await fetch('/shop/api/promo/validate', {
+                method: 'POST', body: fd, headers: { 'X-CSRF-Token': csrfToken }
+            });
+            const data = await res.json();
+            resultDiv.classList.remove('hidden');
+
+            if (data.valid) {
+                successDiv.classList.remove('hidden');
+                errorDiv.classList.add('hidden');
+                document.getElementById('promo-message').textContent = data.message;
+                document.getElementById('promo-code-hidden').value = code;
+                _appliedPromoId = data.promo_id;
+                discountRow.classList.remove('hidden');
+                document.getElementById('promo-discount-amount').textContent = '-' + formatNumber(data.discount) + ' ' + T.sum;
+                discountedProductTotal = Number(data.new_total) || PRODUCT_TOTAL;
+                recalculateCheckoutTotal();
+            } else {
+                errorDiv.classList.remove('hidden');
+                successDiv.classList.add('hidden');
+                errorDiv.textContent = data.message;
+                discountRow.classList.add('hidden');
+                discountedProductTotal = PRODUCT_TOTAL;
+                recalculateCheckoutTotal();
+                _appliedPromoId = null;
+            }
+        } catch(e) {
+            resultDiv.classList.remove('hidden');
+            errorDiv.classList.remove('hidden');
+            successDiv.classList.add('hidden');
+            errorDiv.textContent = T.connection_error;
+        }
+    }
+
+    function clearPromo() {
+        document.getElementById('promo-input').value = '';
+        document.getElementById('promo-code-hidden').value = '';
+        document.getElementById('promo-result').classList.add('hidden');
+        document.getElementById('promo-success').classList.add('hidden');
+        document.getElementById('promo-error').classList.add('hidden');
+        document.getElementById('promo-discount-row').classList.add('hidden');
+        discountedProductTotal = PRODUCT_TOTAL;
+        recalculateCheckoutTotal();
+        _appliedPromoId = null;
+    }
+
+    function getLocationFields() {
+        return {
+            lat: document.getElementById('delivery-latitude'),
+            lon: document.getElementById('delivery-longitude'),
+            source: document.getElementById('delivery-location-source'),
+            status: document.getElementById('location-status'),
+            address: document.getElementById('address-input'),
+            button: document.getElementById('use-location-btn')
+        };
+    }
+
+    function setLocationStatus(message, type = 'muted') {
+        const { status } = getLocationFields();
+        if (!status) return;
+        status.textContent = message;
+        status.className = 'mt-2 text-[11px] font-semibold ' + (
+            type === 'success' ? 'text-green-700' :
+            type === 'error' ? 'text-red-600' :
+            'text-[#8C735F]'
+        );
+    }
+
+    function showCheckoutError(message) {
+        if (typeof showToast === 'function') {
+            showToast(message, 'error');
+        } else {
+            alert(message);
+        }
+    }
+
+    function clearDeliveryLocation() {
+        const { lat, lon, source } = getLocationFields();
+        if (lat) lat.value = '';
+        if (lon) lon.value = '';
+        if (source) source.value = '';
+    }
+
+    function initSavedAddressPicker() {
+        const picker = document.getElementById('saved-address-picker');
+        const trigger = document.getElementById('saved-address-trigger');
+        const menu = document.getElementById('saved-address-menu');
+        const value = document.getElementById('saved-address-value');
+        const chevron = document.getElementById('saved-address-chevron');
+        if (!picker || !trigger || !menu || !value) return;
+
+        const close = () => {
+            menu.classList.add('hidden');
+            trigger.setAttribute('aria-expanded', 'false');
+            chevron?.classList.remove('rotate-180');
+        };
+
+        const clearSelection = () => {
+            value.textContent = value.dataset.placeholder || '';
+            picker.querySelectorAll('.saved-address-option').forEach(option => {
+                option.setAttribute('aria-selected', 'false');
+                option.classList.remove('bg-white');
+                option.querySelector('.saved-address-check')?.classList.add('hidden');
+            });
+        };
+
+        const selectAddress = (option) => {
+            const { address } = getLocationFields();
+            const selectedAddress = option.dataset.address || '';
+            if (!address || !selectedAddress) return;
+
+            address.value = selectedAddress;
+            clearDeliveryLocation();
+            value.textContent = selectedAddress;
+            picker.querySelectorAll('.saved-address-option').forEach(item => {
+                const isSelected = item === option;
+                item.setAttribute('aria-selected', String(isSelected));
+                item.classList.toggle('bg-white', isSelected);
+                item.querySelector('.saved-address-check')?.classList.toggle('hidden', !isSelected);
+            });
+            setLocationStatus(T.saved_address_selected || 'Сохранённый адрес выбран.', 'success');
+            close();
+        };
+
+        trigger.addEventListener('click', () => {
+            const isOpen = menu.classList.contains('hidden');
+            menu.classList.toggle('hidden', !isOpen);
+            trigger.setAttribute('aria-expanded', String(isOpen));
+            chevron?.classList.toggle('rotate-180', isOpen);
+        });
+        picker.querySelectorAll('.saved-address-option').forEach(option => {
+            option.addEventListener('click', () => selectAddress(option));
+        });
+        document.addEventListener('click', event => {
+            if (!picker.contains(event.target)) close();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') close();
+        });
+
+        window.clearSavedAddressSelection = clearSelection;
+    }
+
+    async function reverseGeocode(lat, lon) {
+        const response = await fetch(`/shop/api/reverse-geocode?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
+        if (!response.ok) return '';
+        const data = await response.json();
+        return data.address || '';
+    }
+
+    function locationErrorMessage(error) {
+        if (error && error.code === error.PERMISSION_DENIED) {
+            return T.location_permission_denied || 'Разрешите доступ к геолокации в настройках устройства';
+        }
+        if (error && error.code === error.POSITION_UNAVAILABLE) {
+            return T.location_unavailable || 'Не удалось определить геолокацию';
+        }
+        if (error && error.code === error.TIMEOUT) {
+            return T.location_timeout || 'Геолокация не ответила вовремя';
+        }
+        return T.location_unavailable || 'Не удалось определить геолокацию';
+    }
+
+    async function useCurrentLocation() {
+        const { lat, lon, source, address, button } = getLocationFields();
+        if (!navigator.geolocation) {
+            setLocationStatus(T.location_unavailable || 'Геолокация недоступна на этом устройстве', 'error');
+            return;
+        }
+        if (window.isSecureContext === false) {
+            setLocationStatus(T.location_secure_required || 'Геолокация работает только в защищённом соединении HTTPS', 'error');
+            return;
+        }
+
+        if (button) {
+            button.disabled = true;
+            button.classList.add('opacity-70');
+        }
+        setLocationStatus(T.location_loading || 'Запрашиваем геолокацию...');
+
+        navigator.geolocation.getCurrentPosition(async (position) => {
+            const latitude = Number(position.coords.latitude).toFixed(6);
+            const longitude = Number(position.coords.longitude).toFixed(6);
+            const fallbackAddress = `${latitude}, ${longitude}`;
+
+            if (lat) lat.value = latitude;
+            if (lon) lon.value = longitude;
+            if (source) source.value = 'browser_geolocation';
+
+            try {
+                const resolvedAddress = await reverseGeocode(latitude, longitude);
+                if (address) address.value = resolvedAddress || fallbackAddress;
+                window.clearSavedAddressSelection?.();
+                setLocationStatus(T.location_found || 'Геолокация получена, адрес заполнен', 'success');
+            } catch (error) {
+                if (address) address.value = fallbackAddress;
+                window.clearSavedAddressSelection?.();
+                setLocationStatus(T.location_geocode_failed || 'Геолокация получена, но адрес не распознан', 'success');
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.classList.remove('opacity-70');
+                }
+            }
+        }, (error) => {
+            clearDeliveryLocation();
+            setLocationStatus(locationErrorMessage(error), 'error');
+            if (button) {
+                button.disabled = false;
+                button.classList.remove('opacity-70');
+            }
+        }, {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 60000
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        toggleDeliveryFields();
+        document.querySelectorAll('input[name="delivery_method"], input[name="delivery_option_id"]').forEach(input => {
+            input.addEventListener('change', recalculateCheckoutTotal);
+        });
+        document.querySelectorAll('input[name="payment_method"]').forEach(input => {
+            input.addEventListener('change', togglePaymentReceipt);
+        });
+        togglePaymentReceipt();
+        document.getElementById('use-location-btn')?.addEventListener('click', useCurrentLocation);
+        document.getElementById('address-input')?.addEventListener('input', () => {
+            clearDeliveryLocation();
+            window.clearSavedAddressSelection?.();
+            setLocationStatus(T.location_hint || 'Можно отправить геолокацию для точного адреса');
+        });
+        initSavedAddressPicker();
+
+        const form = document.querySelector('form[action="/shop/order/create"]');
+        if (!form) return;
+
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn ? submitBtn.innerHTML : '';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + T.processing;
+            }
+
+            try {
+                const formData = new FormData(this);
+                if (formData.get('payment_method') === 'card_transfer') {
+                    const receipt = formData.get('payment_receipt');
+                    if (!receipt || !receipt.name) {
+                        if (typeof showToast === 'function') {
+                            showToast(T.payment_receipt_required || 'Прикрепите скриншот чека', 'error');
+                        } else {
+                            alert(T.payment_receipt_required || 'Прикрепите скриншот чека');
+                        }
+                        return;
+                    }
+                }
+                if (formData.get('delivery_method') === 'delivery') {
+                    const source = formData.get('delivery_location_source');
+                    const lat = formData.get('delivery_latitude');
+                    const lon = formData.get('delivery_longitude');
+                    if (source === 'browser_geolocation' && (!lat || !lon)) {
+                        showCheckoutError(T.location_invalid || 'Геолокация не получена. Нажмите кнопку геолокации ещё раз.');
+                        return;
+                    }
+                }
+                const csrfToken =
+                    formData.get('csrf_token') ||
+                    document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+                const response = await fetch(this.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRF-Token': csrfToken
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'redirect') {
+                    window.location.href = result.url;
+                    return;
+                }
+                if (result.status === 'success') {
+                    window.location.href = `/shop/order/success/${result.order_id}`;
+                    return;
+                }
+
+                if (typeof showToast === 'function') {
+                    showToast(result.message || T.order_create_error, 'error');
+                } else {
+                    alert(result.message || T.error);
+                }
+            } catch (error) {
+                console.error(error);
+                if (typeof showToast === 'function') {
+                    showToast(T.connection_error, 'error');
+                } else {
+                    alert(T.connection_error);
+                }
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,1396 @@
+{% extends "admin/base.html" %}
+
+{% block header %}Настройки{% endblock %}
+
+{% block content %}
+{% set active_delivery_count = delivery_options | selectattr('is_active') | list | length %}
+<style>
+    .settings-page {
+        --settings-line: rgba(62, 35, 16, 0.10);
+        --settings-line-strong: rgba(62, 35, 16, 0.16);
+        --settings-ink: #2B1A0F;
+        --settings-muted: #796756;
+        --settings-accent: #6B3F1E;
+        --settings-danger: #B42318;
+        --settings-success: #15803D;
+        max-width: 1180px;
+    }
+
+    .settings-overview-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        align-items: start;
+        gap: 0.9rem;
+    }
+
+    .settings-card {
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid var(--settings-line);
+        border-radius: 18px;
+        box-shadow: 0 16px 44px -30px rgba(62, 35, 16, 0.36);
+    }
+
+    .settings-kicker,
+    .settings-field-label,
+    .settings-list-label {
+        display: block;
+        color: var(--settings-muted);
+        font-size: 0.68rem;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        line-height: 1;
+        text-transform: uppercase;
+    }
+
+    .settings-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 1.75rem;
+        padding: 0.35rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 900;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .settings-pill-success {
+        background: rgba(21, 128, 61, 0.11);
+        color: #166534;
+    }
+
+    .settings-pill-muted {
+        background: rgba(121, 103, 86, 0.12);
+        color: #645242;
+    }
+
+    .settings-pill-info {
+        background: rgba(37, 99, 235, 0.10);
+        color: #1D4ED8;
+    }
+
+    .settings-card {
+        display: flex;
+        min-height: 250px;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .settings-card-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1.15rem 1.2rem;
+        border-bottom: 1px solid var(--settings-line);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(247, 245, 242, 0.58));
+    }
+
+    .settings-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.35rem;
+        height: 2.35rem;
+        border-radius: 12px;
+        background: #F2E8DC;
+        color: var(--settings-accent);
+        flex: 0 0 auto;
+    }
+
+    .settings-title {
+        margin-top: 0.25rem;
+        color: var(--settings-ink);
+        font-size: 1rem;
+        font-weight: 900;
+        line-height: 1.2;
+    }
+
+    .settings-card-body {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem 1.2rem 1.2rem;
+    }
+
+    .settings-list {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .settings-list-value {
+        margin-top: 0.32rem;
+        color: var(--settings-ink);
+        font-size: 0.92rem;
+        font-weight: 800;
+        line-height: 1.42;
+    }
+
+    .settings-preview-list {
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .settings-preview-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.7rem 0.8rem;
+        border: 1px solid var(--settings-line);
+        border-radius: 13px;
+        background: #fff;
+    }
+
+    .settings-preview-name {
+        color: var(--settings-ink);
+        font-size: 0.86rem;
+        font-weight: 900;
+        line-height: 1.25;
+    }
+
+    .settings-preview-meta {
+        display: block;
+        margin-top: 0.18rem;
+        color: var(--settings-muted);
+        font-size: 0.72rem;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+
+    .settings-preview-price {
+        color: var(--settings-ink);
+        font-size: 0.84rem;
+        font-weight: 900;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .settings-preview-more {
+        display: block;
+        padding: 0.45rem 0;
+        color: var(--settings-muted);
+        font-size: 0.74rem;
+        font-weight: 800;
+        text-align: center;
+        letter-spacing: 0.01em;
+    }
+
+    .settings-card-actions {
+        margin-top: auto;
+    }
+
+    .settings-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        min-height: 2.75rem;
+        border-radius: 12px;
+        padding: 0.7rem 1rem;
+        font-size: 0.85rem;
+        font-weight: 900;
+        line-height: 1;
+        transition: transform 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .settings-btn:active {
+        transform: scale(0.98);
+    }
+
+    .settings-btn-primary {
+        background: var(--settings-accent);
+        color: #fff;
+        box-shadow: 0 12px 30px -18px rgba(107, 63, 30, 0.9);
+    }
+
+    .settings-btn-primary:hover {
+        background: #543116;
+    }
+
+    .settings-btn-secondary {
+        background: #F7F5F2;
+        color: var(--settings-ink);
+        border: 1px solid var(--settings-line);
+    }
+
+    .settings-btn-secondary:hover {
+        background: #EFE6DB;
+    }
+
+    .settings-btn-ghost {
+        background: #fff;
+        color: var(--settings-ink);
+        border: 1px solid var(--settings-line);
+    }
+
+    .settings-btn-ghost:hover {
+        background: #F7F5F2;
+    }
+
+    .settings-input {
+        width: 100%;
+        min-height: 2.8rem;
+        border: 1px solid var(--settings-line-strong);
+        border-radius: 12px;
+        background: #fff;
+        color: var(--settings-ink);
+        font-size: 0.88rem;
+        font-weight: 700;
+        line-height: 1.35;
+        padding: 0.7rem 0.85rem;
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+
+    .settings-input::placeholder {
+        color: #B09B8B;
+        font-weight: 600;
+    }
+
+    .settings-input:focus {
+        outline: none;
+        border-color: var(--settings-accent);
+        background: #fff;
+        box-shadow: 0 0 0 4px rgba(107, 63, 30, 0.10);
+    }
+
+    .settings-field-label {
+        margin-bottom: 0.45rem;
+    }
+
+    .settings-switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        position: relative;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .settings-switch input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        clip-path: inset(50%);
+    }
+
+    .settings-switch-track {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        width: 3.05rem;
+        height: 1.7rem;
+        border-radius: 999px;
+        background: #D8CEC4;
+        box-shadow: inset 0 0 0 1px rgba(62, 35, 16, 0.10);
+        transition: background 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .settings-switch-thumb {
+        position: absolute;
+        left: 0.25rem;
+        width: 1.18rem;
+        height: 1.18rem;
+        border-radius: 999px;
+        background: #fff;
+        box-shadow: 0 4px 10px rgba(62, 35, 16, 0.18);
+        transition: transform 0.18s ease;
+    }
+
+    .settings-switch input:checked + .settings-switch-track {
+        background: var(--settings-success);
+        box-shadow: inset 0 0 0 1px rgba(21, 128, 61, 0.18);
+    }
+
+    .settings-switch input:checked + .settings-switch-track .settings-switch-thumb {
+        transform: translateX(1.35rem);
+    }
+
+    .settings-switch-text {
+        color: var(--settings-ink);
+        font-size: 0.82rem;
+        font-weight: 900;
+    }
+
+    .settings-modal.hidden {
+        display: none !important;
+    }
+
+    .settings-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.25rem;
+        background: rgba(35, 22, 12, 0.48);
+        overflow-y: auto;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+
+    .settings-dialog {
+        display: flex;
+        width: min(760px, 100%);
+        max-height: calc(100vh - 2.5rem);
+        flex-direction: column;
+        overflow: hidden;
+        border-radius: 20px;
+        background: #fff;
+        box-shadow: 0 30px 80px -35px rgba(32, 18, 8, 0.74);
+    }
+
+    .settings-dialog-wide {
+        width: min(1060px, 100%);
+    }
+
+    .settings-dialog-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1.2rem 1.25rem;
+        border-bottom: 1px solid var(--settings-line);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 245, 242, 0.72));
+    }
+
+    .settings-dialog-body {
+        overflow: auto;
+        padding: 1.2rem 1.25rem;
+    }
+
+    .settings-dialog-footer {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.7rem;
+        padding: 1rem 1.25rem;
+        border-top: 1px solid var(--settings-line);
+        background: rgba(247, 245, 242, 0.72);
+    }
+
+    .settings-modal-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.45rem;
+        height: 2.45rem;
+        border: 1px solid var(--settings-line);
+        border-radius: 12px;
+        background: #fff;
+        color: var(--settings-ink);
+        transition: background 0.16s ease, transform 0.16s ease;
+    }
+
+    .settings-modal-close:hover {
+        background: #F7F5F2;
+    }
+
+    .settings-modal-close:active {
+        transform: scale(0.96);
+    }
+
+    .settings-delivery-head,
+    .settings-delivery-row,
+    .settings-delivery-add {
+        display: grid;
+        grid-template-columns: minmax(170px, 1.25fr) minmax(170px, 1.25fr) minmax(130px, 0.72fr) 116px 58px;
+        gap: 0.7rem;
+        align-items: center;
+    }
+
+    .settings-delivery-head {
+        padding: 0 0.75rem 0.65rem;
+        color: var(--settings-muted);
+        font-size: 0.68rem;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .settings-delivery-row,
+    .settings-delivery-add {
+        position: relative;
+        padding: 0.75rem;
+        border: 1px solid var(--settings-line);
+        border-radius: 14px;
+        background: #fff;
+        transition: opacity 0.18s ease, background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+    }
+
+    .settings-delivery-row + .settings-delivery-row {
+        margin-top: 0.55rem;
+    }
+
+    .settings-delivery-row:hover {
+        border-color: rgba(107, 63, 30, 0.22);
+        background: #FFFDFC;
+    }
+
+    .settings-delivery-row.is-marked-delete {
+        opacity: 0.54;
+        background: rgba(180, 35, 24, 0.045);
+        border-color: rgba(180, 35, 24, 0.25);
+    }
+
+    .settings-price-wrap {
+        position: relative;
+    }
+
+    .settings-price-wrap .settings-input {
+        padding-right: 3.05rem;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .settings-price-suffix {
+        position: absolute;
+        top: 50%;
+        right: 0.8rem;
+        color: var(--settings-muted);
+        font-size: 0.72rem;
+        font-weight: 900;
+        transform: translateY(-50%);
+        pointer-events: none;
+    }
+
+    .settings-delete {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.7rem;
+        height: 2.7rem;
+        border: 1px solid rgba(180, 35, 24, 0.18);
+        border-radius: 12px;
+        background: #fff;
+        color: #B42318;
+        cursor: pointer;
+        transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+    }
+
+    .settings-delete:hover,
+    .settings-delete.is-checked {
+        background: #B42318;
+        border-color: #B42318;
+        color: #fff;
+    }
+
+    .settings-delete:has(input:checked) {
+        background: #B42318;
+        border-color: #B42318;
+        color: #fff;
+    }
+
+    .settings-delete:active {
+        transform: scale(0.96);
+    }
+
+    .settings-delete input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        clip-path: inset(50%);
+    }
+
+    .settings-add-band {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--settings-line);
+    }
+
+    .settings-delivery-add {
+        background: #F7F5F2;
+        border-style: dashed;
+    }
+
+    @keyframes settings-pulse {
+        0%, 100% { transform: scale(0.7); opacity: 0.7; }
+        50% { transform: scale(1.35); opacity: 0; }
+    }
+
+    .settings-confirm {
+        position: fixed;
+        inset: 0;
+        z-index: 90;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.25rem;
+        background: rgba(35, 22, 12, 0.5);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+    }
+
+    .settings-confirm.hidden { display: none !important; }
+
+    .settings-confirm-dialog {
+        width: min(440px, 100%);
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: 0 30px 80px -35px rgba(32, 18, 8, 0.74);
+        overflow: hidden;
+    }
+
+    .settings-confirm-head {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        padding: 1.1rem 1.2rem;
+        border-bottom: 1px solid var(--settings-line);
+    }
+
+    .settings-confirm-head .settings-icon {
+        background: rgba(180, 35, 24, 0.10);
+        color: #B42318;
+    }
+
+    .settings-confirm-text {
+        padding: 1rem 1.2rem;
+        color: var(--settings-ink);
+        font-size: 0.9rem;
+        font-weight: 600;
+        line-height: 1.4;
+    }
+
+    .settings-confirm-footer {
+        display: flex;
+        gap: 0.55rem;
+        padding: 0.9rem 1.2rem 1.1rem;
+        border-top: 1px solid var(--settings-line);
+        background: rgba(247, 245, 242, 0.72);
+    }
+
+    .settings-confirm-footer .settings-btn {
+        flex: 1;
+    }
+
+    .settings-toast {
+        position: fixed;
+        left: 50%;
+        bottom: 1.25rem;
+        transform: translate(-50%, 1.5rem);
+        z-index: 100;
+        max-width: min(520px, 92vw);
+        padding: 0.8rem 1rem;
+        border-radius: 14px;
+        background: #2B1A0F;
+        color: #fff;
+        font-size: 0.85rem;
+        font-weight: 800;
+        line-height: 1.3;
+        box-shadow: 0 18px 48px -22px rgba(32, 18, 8, 0.74);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    .settings-toast.is-visible {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+
+    .settings-toast.is-error {
+        background: #B42318;
+    }
+
+    .settings-toast.is-success {
+        background: #15803D;
+    }
+
+    .settings-section-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.4rem;
+        min-height: 0;
+    }
+
+    .settings-section-pills:empty {
+        display: none;
+    }
+
+    .settings-section-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.65rem;
+        border-radius: 999px;
+        background: rgba(107, 63, 30, 0.10);
+        color: var(--settings-accent);
+        font-size: 0.72rem;
+        font-weight: 900;
+    }
+
+    .settings-section-pill-dot {
+        width: 0.45rem;
+        height: 0.45rem;
+        border-radius: 999px;
+        background: var(--settings-accent);
+    }
+
+    .settings-section-pill.is-dirty {
+        background: rgba(244, 181, 116, 0.18);
+        color: #92400E;
+    }
+
+    .settings-section-pill.is-dirty .settings-section-pill-dot {
+        background: #F4B574;
+        animation: settings-pulse 1.4s ease-in-out infinite;
+    }
+
+    @media (max-width: 640px) {
+        .settings-confirm-footer {
+            flex-direction: column;
+        }
+    }
+
+    @media (max-width: 1024px) {
+        .settings-overview-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .settings-card {
+            min-height: 0;
+        }
+
+        .settings-delivery-head {
+            display: none;
+        }
+
+        .settings-delivery-row,
+        .settings-delivery-add {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .settings-delivery-row > *,
+        .settings-delivery-add > * {
+            min-width: 0;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .settings-modal {
+            align-items: center;
+            padding: 0.75rem;
+        }
+
+        .settings-dialog {
+            max-height: calc(100vh - 1.5rem);
+            border-radius: 18px;
+        }
+
+        .settings-card-head,
+        .settings-card-body,
+        .settings-dialog-head,
+        .settings-dialog-body,
+        .settings-dialog-footer {
+            padding: 1rem;
+        }
+
+        .settings-dialog-footer {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .settings-dialog-footer .settings-btn {
+            width: 100%;
+        }
+
+        .settings-delivery-row,
+        .settings-delivery-add {
+            grid-template-columns: 1fr;
+        }
+
+    }
+</style>
+
+{% if success %}
+<div class="mb-5 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-extrabold text-green-700">
+    <i class="fas fa-circle-check mr-2"></i>{{ success }}
+</div>
+{% endif %}
+{% if error %}
+<div class="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-extrabold text-red-700">
+    <i class="fas fa-triangle-exclamation mr-2"></i>{{ error }}
+</div>
+{% endif %}
+
+<form method="POST" action="/admin/settings" class="settings-page space-y-5">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <div class="settings-overview-grid">
+        <section class="settings-card" data-section-card="pickup">
+            <div class="settings-card-head">
+                <div class="flex items-start gap-3">
+                    <span class="settings-icon"><i class="fas fa-store"></i></span>
+                    <div>
+                        <span class="settings-kicker">Получение заказа</span>
+                        <h4 class="settings-title">Самовывоз</h4>
+                    </div>
+                </div>
+                <span data-section-pill="pickup"
+                    class="settings-pill {{ 'settings-pill-success' if pickup_enabled else 'settings-pill-muted' }}">
+                    {{ 'Включен' if pickup_enabled else 'Выключен' }}
+                </span>
+            </div>
+            <div class="settings-card-body">
+                <div class="settings-list">
+                    <div>
+                        <span class="settings-list-label">Адрес</span>
+                        <p class="settings-list-value">{{ pickup_address }}</p>
+                    </div>
+                </div>
+                <div class="settings-card-actions">
+                    <button type="button" class="settings-btn settings-btn-primary w-full"
+                        data-settings-modal-open="pickup-modal"
+                        aria-haspopup="dialog" aria-expanded="false" aria-controls="pickup-modal">
+                        <i class="fas fa-pen"></i> Редактировать
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section class="settings-card" data-section-card="card-transfer">
+            <div class="settings-card-head">
+                <div class="flex items-start gap-3">
+                    <span class="settings-icon"><i class="fas fa-credit-card"></i></span>
+                    <div>
+                        <span class="settings-kicker">Реквизиты</span>
+                        <h4 class="settings-title">Перевод на карту</h4>
+                    </div>
+                </div>
+                <span class="settings-pill {{ 'settings-pill-success' if card_transfer_details.card_number else 'settings-pill-muted' }}">
+                    {{ 'Готово' if card_transfer_details.card_number else 'Пусто' }}
+                </span>
+            </div>
+            <div class="settings-card-body">
+                <div class="settings-list">
+                    <div>
+                        <span class="settings-list-label">Номер карты</span>
+                        <p class="settings-list-value tabular-nums">{{ card_transfer_details.card_number or 'Не задан' }}</p>
+                    </div>
+                    <div>
+                        <span class="settings-list-label">Имя владельца</span>
+                        <p class="settings-list-value">{{ card_transfer_details.card_holder or 'Не задано' }}</p>
+                    </div>
+                </div>
+                <div class="settings-card-actions">
+                    <button type="button" class="settings-btn settings-btn-primary w-full"
+                        data-settings-modal-open="card-transfer-modal"
+                        aria-haspopup="dialog" aria-expanded="false" aria-controls="card-transfer-modal">
+                        <i class="fas fa-pen"></i> Редактировать
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section class="settings-card" data-section-card="delivery">
+            <div class="settings-card-head">
+                <div class="flex items-start gap-3">
+                    <span class="settings-icon"><i class="fas fa-truck-fast"></i></span>
+                    <div>
+                        <span class="settings-kicker">Логистика</span>
+                        <h4 class="settings-title">Варианты доставки</h4>
+                    </div>
+                </div>
+                <span data-section-pill="delivery" class="settings-pill settings-pill-info">{{ active_delivery_count }} активны</span>
+            </div>
+            <div class="settings-card-body">
+                <div class="settings-preview-list" data-delivery-preview>
+                    {% for option in delivery_options %}
+                    {% if loop.index <= 3 %}
+                    <div class="settings-preview-row">
+                        <div>
+                            <span class="settings-preview-name">{{ option.name_ru }}</span>
+                            <span class="settings-preview-meta">{{ 'Активен' if option.is_active else 'Выключен' }}</span>
+                        </div>
+                        <span class="settings-preview-price">{{ option.price | number_format }} сум</span>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                    {% if delivery_options | length > 3 %}
+                    <div class="settings-preview-more">
+                        И ещё {{ delivery_options | length - 3 }} вариант{{ '' if (delivery_options | length - 3) in [2,3,4] else 'ов' }}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="settings-card-actions">
+                    <button type="button" class="settings-btn settings-btn-primary w-full"
+                        data-settings-modal-open="delivery-modal"
+                        aria-haspopup="dialog" aria-expanded="false" aria-controls="delivery-modal">
+                        <i class="fas fa-pen"></i> Редактировать
+                    </button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="settings-section-pills"
+         data-section-pills role="status" aria-live="polite"></div>
+
+    <div class="settings-confirm hidden" data-confirm-modal aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div class="settings-confirm-dialog">
+            <div class="settings-confirm-head">
+                <span class="settings-icon"><i class="fas fa-triangle-exclamation"></i></span>
+                <h4 id="confirm-title" class="settings-title">Несохранённые правки</h4>
+            </div>
+            <p class="settings-confirm-text" data-confirm-text>В этом разделе есть несохранённые правки.</p>
+            <div class="settings-confirm-footer">
+                <button type="button" class="settings-btn settings-btn-ghost" data-confirm-keep>
+                    <i class="fas fa-pen"></i> Продолжить правки
+                </button>
+                <button type="button" class="settings-btn settings-btn-ghost" data-confirm-discard>
+                    <i class="fas fa-xmark"></i> Отбросить
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-toast" data-settings-toast aria-live="polite" role="status"></div>
+
+    <div id="pickup-modal" class="settings-modal hidden" data-settings-modal aria-hidden="true">
+        <div class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-modal-title">
+            <div class="settings-dialog-head">
+                <div class="flex items-start gap-3">
+                    <span class="settings-icon"><i class="fas fa-store"></i></span>
+                    <div>
+                        <span class="settings-kicker">Получение заказа</span>
+                        <h4 id="pickup-modal-title" class="settings-title">Редактировать самовывоз</h4>
+                    </div>
+                </div>
+                <button type="button" class="settings-modal-close" data-settings-modal-close aria-label="Закрыть">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="settings-dialog-body space-y-4">
+                <label class="settings-switch">
+                    <input type="checkbox" name="pickup_enabled" value="1" {% if pickup_enabled %}checked{% endif %}>
+                    <span class="settings-switch-track" aria-hidden="true">
+                        <span class="settings-switch-thumb"></span>
+                    </span>
+                    <span class="settings-switch-text">Самовывоз доступен</span>
+                </label>
+                <div>
+                    <label class="settings-field-label" for="pickup-address">Адрес самовывоза</label>
+                    <textarea id="pickup-address" name="pickup_address" rows="4" class="settings-input resize-none">{{ pickup_address }}</textarea>
+                </div>
+            </div>
+            <div class="settings-dialog-footer">
+                <button type="button" class="settings-btn settings-btn-ghost" data-settings-modal-close>Отмена</button>
+                <button type="button" class="settings-btn settings-btn-primary" data-settings-modal-apply>
+                    <i class="fas fa-check"></i> Применить
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="card-transfer-modal" class="settings-modal hidden" data-settings-modal aria-hidden="true">
+        <div class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="card-transfer-modal-title">
+            <div class="settings-dialog-head">
+                <div class="flex items-start gap-3">
+                    <span class="settings-icon"><i class="fas fa-credit-card"></i></span>
+                    <div>
+                        <span class="settings-kicker">Реквизиты</span>
+                        <h4 id="card-transfer-modal-title" class="settings-title">Редактировать перевод на карту</h4>
+                    </div>
+                </div>
+                <button type="button" class="settings-modal-close" data-settings-modal-close aria-label="Закрыть">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="settings-dialog-body">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="settings-field-label" for="card-transfer-number">Номер карты</label>
+                        <input id="card-transfer-number" type="text" name="card_transfer_number"
+                            value="{{ card_transfer_details.card_number }}" class="settings-input tabular-nums"
+                            placeholder="8600 0000 0000 0000">
+                    </div>
+                    <div>
+                        <label class="settings-field-label" for="card-transfer-holder">Имя владельца</label>
+                        <input id="card-transfer-holder" type="text" name="card_transfer_holder"
+                            value="{{ card_transfer_details.card_holder }}" class="settings-input"
+                            placeholder="Имя владельца карты">
+                    </div>
+                </div>
+            </div>
+            <div class="settings-dialog-footer">
+                <button type="button" class="settings-btn settings-btn-ghost" data-settings-modal-close>Отмена</button>
+                <button type="button" class="settings-btn settings-btn-primary" data-settings-modal-apply>
+                    <i class="fas fa-check"></i> Применить
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="delivery-modal" class="settings-modal hidden" data-settings-modal aria-hidden="true">
+        <div class="settings-dialog settings-dialog-wide" role="dialog" aria-modal="true" aria-labelledby="delivery-modal-title">
+            <div class="settings-dialog-head">
+                <div class="flex items-start gap-3">
+                    <span class="settings-icon"><i class="fas fa-truck-fast"></i></span>
+                    <div>
+                        <span class="settings-kicker">Логистика</span>
+                        <h4 id="delivery-modal-title" class="settings-title">Редактировать доставку</h4>
+                    </div>
+                </div>
+                <button type="button" class="settings-modal-close" data-settings-modal-close aria-label="Закрыть">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="settings-dialog-body">
+                <div class="settings-delivery-head">
+                    <span>Название RU</span>
+                    <span>Название UZ</span>
+                    <span class="text-right">Цена</span>
+                    <span class="text-center">Статус</span>
+                    <span class="text-center">Удалить</span>
+                </div>
+
+                <div>
+                    {% for option in delivery_options %}
+                    <div class="settings-delivery-row delivery-option-row">
+                        <div>
+                            <label class="settings-field-label lg:hidden" for="delivery-name-ru-{{ option.id }}">Название RU</label>
+                            <input type="hidden" name="delivery_option_id[]" value="{{ option.id }}">
+                            <input id="delivery-name-ru-{{ option.id }}" type="text" name="delivery_option_name_ru[]"
+                                value="{{ option.name_ru }}" class="settings-input" required>
+                        </div>
+                        <div>
+                            <label class="settings-field-label lg:hidden" for="delivery-name-uz-{{ option.id }}">Название UZ</label>
+                            <input id="delivery-name-uz-{{ option.id }}" type="text" name="delivery_option_name_uz[]"
+                                value="{{ option.name_uz }}" class="settings-input">
+                        </div>
+                        <div class="settings-price-wrap">
+                            <label class="settings-field-label lg:hidden" for="delivery-price-{{ option.id }}">Цена</label>
+                            <input id="delivery-price-{{ option.id }}" type="number" min="0" step="1000"
+                                name="delivery_option_price[]" value="{{ option.price }}" class="settings-input" required>
+                            <span class="settings-price-suffix">сум</span>
+                        </div>
+                        <div class="flex items-center justify-center lg:justify-start">
+                            <label class="settings-switch">
+                                <input type="checkbox" name="delivery_option_active" value="{{ option.id }}" {% if option.is_active %}checked{% endif %}>
+                                <span class="settings-switch-track" aria-hidden="true">
+                                    <span class="settings-switch-thumb"></span>
+                                </span>
+                                <span class="settings-switch-text">Активен</span>
+                            </label>
+                        </div>
+                        <div class="flex justify-center lg:justify-end">
+                            <label class="settings-delete" title="Удалить">
+                                <input type="checkbox" name="delete_delivery_option" value="{{ option.id }}" class="delivery-delete-checkbox">
+                                <i class="fas fa-trash-can" aria-hidden="true"></i>
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="settings-add-band">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <h5 class="text-sm font-black text-[#2B1A0F]">Добавить вариант</h5>
+                        <span class="settings-preview-meta">{{ delivery_options | length }} вариантов сейчас</span>
+                    </div>
+                    <div class="settings-delivery-add">
+                        <div>
+                            <label class="settings-field-label" for="new-delivery-name-ru">Название RU</label>
+                            <input id="new-delivery-name-ru" type="text" name="new_delivery_option_name_ru"
+                                class="settings-input" placeholder="Например: Экспресс">
+                        </div>
+                        <div>
+                            <label class="settings-field-label" for="new-delivery-name-uz">Название UZ</label>
+                            <input id="new-delivery-name-uz" type="text" name="new_delivery_option_name_uz"
+                                class="settings-input" placeholder="Masalan: Ekspress">
+                        </div>
+                        <div class="settings-price-wrap">
+                            <label class="settings-field-label" for="new-delivery-price">Цена</label>
+                            <input id="new-delivery-price" type="number" min="0" step="1000" name="new_delivery_option_price"
+                                class="settings-input" placeholder="0">
+                            <span class="settings-price-suffix">сум</span>
+                        </div>
+                        <div class="flex items-end">
+                            <label class="settings-switch h-[2.8rem]">
+                                <input type="checkbox" name="new_delivery_option_active" value="1" checked>
+                                <span class="settings-switch-track" aria-hidden="true">
+                                    <span class="settings-switch-thumb"></span>
+                                </span>
+                                <span class="settings-switch-text">Активен</span>
+                            </label>
+                        </div>
+                        <div class="hidden lg:block"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="settings-dialog-footer">
+                <button type="button" class="settings-btn settings-btn-ghost" data-settings-modal-close>Отмена</button>
+                <button type="button" class="settings-btn settings-btn-primary" data-settings-modal-apply>
+                    <i class="fas fa-check"></i> Применить
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+    (function () {
+        var form = document.querySelector('.settings-page');
+        var confirmModal = document.querySelector('[data-confirm-modal]');
+        var confirmTextEl = document.querySelector('[data-confirm-text]');
+        var confirmKeepBtn = document.querySelector('[data-confirm-keep]');
+        var confirmDiscardBtn = document.querySelector('[data-confirm-discard]');
+        var toastEl = document.querySelector('[data-settings-toast]');
+
+        var formSnapshot = {};
+        var pendingCloseAction = null;
+        var toastTimer = null;
+        var lastFocusedButton = null;
+        var isSubmittingSettings = false;
+
+        function snapshotForm() {
+            var snap = {};
+            form.querySelectorAll('input, textarea, select').forEach(function (el) {
+                var key = el.name || el.id;
+                if (!key) return;
+                snap[key] = { value: el.value, checked: el.checked };
+            });
+            return snap;
+        }
+
+        function takeFormSnapshot() {
+            formSnapshot = snapshotForm();
+        }
+
+        function getDirtyFields() {
+            var current = snapshotForm();
+            var diff = {};
+            var count = 0;
+            Object.keys(current).forEach(function (key) {
+                var orig = formSnapshot[key];
+                if (!orig) return;
+                var changed = current[key].value !== orig.value || current[key].checked !== orig.checked;
+                diff[key] = changed;
+                if (changed) count++;
+            });
+            return { diff: diff, count: count };
+        }
+
+        function getSectionFields(section) {
+            if (section === 'pickup') {
+                return ['pickup_enabled', 'pickup_address'];
+            }
+            if (section === 'card-transfer') {
+                return ['card_transfer_number', 'card_transfer_holder'];
+            }
+            if (section === 'delivery') {
+                var names = [];
+                form.querySelectorAll('.delivery-option-row input, .delivery-option-row select, .delivery-option-row textarea').forEach(function (el) {
+                    var n = el.name || el.id;
+                    if (n && names.indexOf(n) === -1) names.push(n);
+                });
+                form.querySelectorAll('.settings-delivery-add input, .settings-delivery-add select, .settings-delivery-add textarea').forEach(function (el) {
+                    var n = el.name || el.id;
+                    if (n && names.indexOf(n) === -1) names.push(n);
+                });
+                return names;
+            }
+            return [];
+        }
+
+        function getDirtySection(section) {
+            var dirty = getDirtyFields();
+            var fields = getSectionFields(section);
+            for (var i = 0; i < fields.length; i++) {
+                if (dirty.diff[fields[i]]) return true;
+            }
+            return false;
+        }
+
+        function countDeletedDelivery() {
+            return form.querySelectorAll('.delivery-delete-checkbox:checked').length;
+        }
+
+        function updateDirtyIndicators() {
+            document.querySelectorAll('[data-section-card]').forEach(function (card) {
+                var section = card.getAttribute('data-section-card');
+                var pill = card.querySelector('[data-section-pill]');
+                if (pill) {
+                    if (getDirtySection(section)) {
+                        pill.classList.add('is-dirty');
+                    } else {
+                        pill.classList.remove('is-dirty');
+                    }
+                }
+            });
+        }
+
+        function validateSettingsForm() {
+            var remainingRows = form.querySelectorAll('.delivery-option-row:not(.is-marked-delete)');
+            var activeRows = form.querySelectorAll('.delivery-option-row:not(.is-marked-delete) input[name="delivery_option_active"]:checked');
+            var newRu = form.querySelector('[name="new_delivery_option_name_ru"]');
+            var newActive = form.querySelector('[name="new_delivery_option_active"]');
+            var hasNewOption = newRu && newRu.value.trim().length > 0;
+
+            if (remainingRows.length === 0 && !hasNewOption) {
+                showToast('Добавьте хотя бы один вариант доставки', 'error');
+                return false;
+            }
+
+            var hasActiveOption = activeRows.length > 0 || (hasNewOption && newActive && newActive.checked);
+            if (!hasActiveOption) {
+                showToast('Оставьте хотя бы один активный вариант доставки', 'error');
+                return false;
+            }
+
+            return true;
+        }
+
+        function submitSettingsForm() {
+            if (!validateSettingsForm()) return;
+            if (form.reportValidity && !form.reportValidity()) return;
+            isSubmittingSettings = true;
+            if (form.requestSubmit) {
+                form.requestSubmit();
+            } else {
+                form.submit();
+            }
+        }
+
+        function showToast(message, type) {
+            if (!toastEl) return;
+            if (toastTimer) clearTimeout(toastTimer);
+            toastEl.textContent = message;
+            toastEl.className = 'settings-toast is-visible' + (type ? ' is-' + type : '');
+            toastTimer = setTimeout(function () {
+                toastEl.classList.remove('is-visible');
+                toastTimer = null;
+            }, 3000);
+        }
+
+        function restoreModal(modal) {
+            var fields = modal.querySelectorAll('input, textarea, select');
+            fields.forEach(function (el) {
+                var origKey = el.name || el.id;
+                var orig = formSnapshot[origKey];
+                if (orig) {
+                    el.value = orig.value;
+                    el.checked = orig.checked;
+                }
+            });
+            syncDeliveryDeleteStates();
+        }
+
+        function openModal(id) {
+            var modal = document.getElementById(id);
+            if (!modal) return;
+            takeFormSnapshot();
+            modal.classList.remove('hidden');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+
+            var openBtn = document.querySelector('[aria-controls="' + id + '"]');
+            if (openBtn) {
+                openBtn.setAttribute('aria-expanded', 'true');
+                lastFocusedButton = openBtn;
+            }
+
+            var firstField = modal.querySelector('.settings-input, .settings-modal-close, button');
+            if (firstField) {
+                window.setTimeout(function () { firstField.focus(); }, 0);
+            }
+
+            var dialog = modal.querySelector('.settings-dialog');
+            if (dialog) {
+                modal._trapHandler = function (e) {
+                    if (e.key !== 'Tab') return;
+                    var focusable = dialog.querySelectorAll('input:not([type="hidden"]), button, textarea, select, [tabindex]:not([tabindex="-1"])');
+                    if (!focusable.length) return;
+                    var first = focusable[0];
+                    var last = focusable[focusable.length - 1];
+                    if (e.shiftKey) {
+                        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+                    } else {
+                        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+                    }
+                };
+                modal.addEventListener('keydown', modal._trapHandler);
+            }
+        }
+
+        function forceCloseModal(modal) {
+            modal.classList.add('hidden');
+            modal.setAttribute('aria-hidden', 'true');
+            if (modal._trapHandler) {
+                modal.removeEventListener('keydown', modal._trapHandler);
+                modal._trapHandler = null;
+            }
+            if (!document.querySelector('.settings-modal:not(.hidden)') && !confirmModal.classList.contains('hidden')) {
+            } else if (!document.querySelector('.settings-modal:not(.hidden)')) {
+                document.body.style.overflow = '';
+            }
+            if (lastFocusedButton) {
+                lastFocusedButton.setAttribute('aria-expanded', 'false');
+                lastFocusedButton.focus();
+            }
+        }
+
+        function tryCloseModal(modal) {
+            var section = modal.getAttribute('id').replace('-modal', '');
+            var isDirty = getDirtySection(section);
+
+            if (!isDirty) {
+                forceCloseModal(modal);
+                return;
+            }
+
+            confirmModal.classList.remove('hidden');
+            confirmModal.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+            confirmTextEl.textContent = 'В этом разделе есть несохранённые правки.';
+            confirmKeepBtn.hidden = false;
+            confirmDiscardBtn.hidden = false;
+
+            pendingCloseAction = function (action) {
+                confirmModal.classList.add('hidden');
+                confirmModal.setAttribute('aria-hidden', 'true');
+
+                if (action === 'discard') {
+                    restoreModal(modal);
+                    forceCloseModal(modal);
+                }
+
+                if (!document.querySelector('.settings-modal:not(.hidden)')) {
+                    document.body.style.overflow = '';
+                }
+                updateDirtyIndicators();
+            };
+        }
+
+        form.addEventListener('input', function () {
+            updateDirtyIndicators();
+        });
+
+        form.addEventListener('change', function () {
+            updateDirtyIndicators();
+            syncDeliveryDeleteStates();
+        });
+
+        window.addEventListener('beforeunload', function (e) {
+            if (isSubmittingSettings) return;
+            var dirty = getDirtyFields();
+            var deleted = countDeletedDelivery();
+            if (dirty.count + deleted > 0) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+
+        document.querySelectorAll('[data-settings-modal-open]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                openModal(button.getAttribute('data-settings-modal-open'));
+            });
+        });
+
+        document.querySelectorAll('[data-settings-modal-close]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                tryCloseModal(button.closest('.settings-modal'));
+            });
+        });
+
+        document.querySelectorAll('[data-settings-modal-apply]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                submitSettingsForm();
+            });
+        });
+
+        document.querySelectorAll('.settings-modal').forEach(function (modal) {
+            modal.addEventListener('click', function (event) {
+                if (event.target === modal) {
+                    tryCloseModal(modal);
+                }
+            });
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key !== 'Escape') return;
+            if (!confirmModal.classList.contains('hidden')) return;
+            var openModal = document.querySelector('.settings-modal:not(.hidden)');
+            if (openModal) {
+                tryCloseModal(openModal);
+            }
+        });
+
+        if (confirmKeepBtn) {
+            confirmKeepBtn.addEventListener('click', function () {
+                if (pendingCloseAction) pendingCloseAction('keep');
+            });
+        }
+
+        if (confirmDiscardBtn) {
+            confirmDiscardBtn.addEventListener('click', function () {
+                if (pendingCloseAction) pendingCloseAction('discard');
+            });
+        }
+
+        if (confirmModal) {
+            confirmModal.addEventListener('click', function (e) {
+                if (e.target === confirmModal && pendingCloseAction) {
+                    pendingCloseAction('keep');
+                }
+            });
+        }
+
+        function syncDeliveryDeleteStates() {
+            document.querySelectorAll('.delivery-delete-checkbox').forEach(function (checkbox) {
+                var row = checkbox.closest('.delivery-option-row');
+                var deleteControl = checkbox.closest('.settings-delete');
+                if (row) {
+                    row.classList.toggle('is-marked-delete', checkbox.checked);
+                    row.querySelectorAll('input[type="text"], input[type="number"]').forEach(function (input) {
+                        input.readOnly = checkbox.checked;
+                    });
+                }
+                if (deleteControl) {
+                    deleteControl.classList.toggle('is-checked', checkbox.checked);
+                }
+            });
+            updateDirtyIndicators();
+        }
+
+        document.querySelectorAll('.delivery-delete-checkbox').forEach(function (checkbox) {
+            checkbox.addEventListener('change', syncDeliveryDeleteStates);
+        });
+
+        syncDeliveryDeleteStates();
+        takeFormSnapshot();
+
+        var cardInput = document.getElementById('card-transfer-number');
+        if (cardInput) {
+            cardInput.addEventListener('input', function () {
+                var raw = this.value.replace(/\D/g, '').slice(0, 16);
+                var parts = [];
+                for (var i = 0; i < raw.length; i += 4) {
+                    parts.push(raw.slice(i, i + 4));
+                }
+                this.value = parts.join(' ');
+                updateDirtyIndicators();
+            });
+        }
+
+        var priceInputs = document.querySelectorAll('input[type="number"][name*="price"]');
+        priceInputs.forEach(function (input) {
+            input.addEventListener('focus', function () {
+                this.select();
+            });
+        });
+
+    })();
+</script>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "admin/base.html" %}
+{% block title %}Поддержка — Админ{% endblock %}
+{% block header %}Поддержка{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    {% if chats %}
+    {% for chat in chats %}
+    <a href="/admin/support/{{ chat.id }}" class="glass-card p-4 block hover:shadow-lg transition-shadow">
+        <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 bg-[#F2E8DC] rounded-xl flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-user text-[#6B3F1E]"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="font-bold text-[#3E2310] text-sm truncate">
+                        {{ chat.user.username or chat.user.phone or 'Пользователь #' ~ chat.user_id }}
+                    </div>
+                    <div class="text-xs text-[#8C735F] truncate">
+                        {% if chat.user.phone %}{{ chat.user.phone }}{% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                {% if chat.is_closed %}
+                <span class="chip bg-gray-100 text-gray-500">Закрыт</span>
+                {% elif chat.unread_admin > 0 %}
+                <span class="bg-red-500 text-white text-[11px] font-bold min-w-[22px] h-[22px] flex items-center justify-center rounded-full">
+                    {{ chat.unread_admin }}
+                </span>
+                {% endif %}
+                {% if chat.last_message_at %}
+                <span class="text-[11px] text-[#8C735F]">{{ chat.last_message_at | datetime_uz('%d.%m %H:%M') }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+    {% else %}
+    <div class="glass-card p-8 text-center">
+        <div class="text-4xl mb-3 opacity-30">💬</div>
+        <p class="text-[#8C735F] text-sm font-medium">Нет обращений в поддержку</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "admin/base.html" %}
+{% block header %}Промо-баннеры{% endblock %}
+
+{% block content %}
+<div class="glass-card p-3 md:p-6 mb-4 md:mb-6">
+    <h4 class="font-bold text-[#3E2310] mb-3 md:mb-4 text-sm md:text-base">Добавить баннер</h4>
+    <form action="/admin/banners/new" method="POST" enctype="multipart/form-data" class="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div>
+            <label class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider mb-1">Заголовок</label>
+            <input name="title" class="admin-input w-full" placeholder="Скидка 20%">
+        </div>
+        <div>
+            <label class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider mb-1">Подзаголовок</label>
+            <input name="subtitle" class="admin-input w-full" placeholder="На все стаканы">
+        </div>
+        <div>
+            <label class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider mb-1">Бейдж</label>
+            <input name="badge_text" class="admin-input w-full" placeholder="SALE">
+        </div>
+        <div class="md:col-span-2">
+            <label class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider mb-1">Описание</label>
+            <input name="description" class="admin-input w-full" placeholder="Подробное описание акции">
+        </div>
+        <div>
+            <label class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider mb-1">Порядок</label>
+            <input name="sort_order" type="number" class="admin-input w-full" value="0" min="0">
+        </div>
+        <div>
+            <label class="block text-[10px] font-bold text-[#8C735F] uppercase tracking-wider mb-1">Медиа</label>
+            <input name="image" type="file"
+                accept="image/*,video/mp4,video/webm,video/quicktime,video/x-msvideo"
+                data-admin-image-cropper data-crop-preserve-animation="true"
+                data-crop-title="Медиа баннера"
+                data-crop-width="1280" data-crop-height="520"
+                class="block w-full text-sm text-[#8C735F] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#3E2310]/10 file:text-[#3E2310]" required>
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="admin-btn-accent w-full"><i class="fas fa-plus mr-1.5"></i>Создать</button>
+        </div>
+    </form>
+</div>
+
+<div class="mb-3 rounded-xl border border-[#E0CCB7]/60 bg-[#F9F4EF] px-4 py-3 text-sm text-[#6B3F1E] font-semibold">
+    Кликните по баннеру, чтобы прикрепить или убрать товары для перехода из miniapp.
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+    {% for b in banners %}
+    <div class="glass-card p-4 {% if not b.is_active %}opacity-50{% endif %}">
+        <div class="cursor-pointer group" onclick="window.location='/admin/banners/{{ b.id }}/products'">
+            {% if b.image_path %}
+            <img src="{{ b.image_path }}" class="w-full h-32 object-cover rounded-xl mb-3 group-hover:brightness-95 transition">
+            {% else %}
+            <div class="w-full h-32 bg-gradient-to-br from-[#3E2310] to-[#6B3F1E] rounded-xl mb-3 flex items-center justify-center">
+                <span class="text-white/60 text-4xl"><i class="fas fa-image"></i></span>
+            </div>
+            {% endif %}
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <h4 class="font-bold text-[#3E2310] text-base group-hover:text-[#6B3F1E] transition">{{ b.title }}</h4>
+                    {% if b.subtitle %}<p class="text-xs text-[#8C735F] mt-0.5">{{ b.subtitle }}</p>{% endif %}
+                </div>
+                <span class="chip bg-[#EFE6DB] text-[#3E2310] flex-shrink-0">{{ b.products | length }} тов.</span>
+            </div>
+            {% if b.badge_text %}<span class="chip bg-[#6B3F1E]/10 text-[#6B3F1E] mt-2 inline-block">{{ b.badge_text }}</span>{% endif %}
+            <div class="mt-2 text-xs font-bold text-[#8C735F]">
+                <i class="fas fa-link mr-1"></i>Открыть привязку товаров
+            </div>
+        </div>
+        <div class="flex gap-2 mt-3 pt-3 border-t border-[#F2E8DC]">
+            <form action="/admin/banners/{{ b.id }}/toggle" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="admin-btn text-[10px] px-2 py-1">{{ 'Выкл' if b.is_active else 'Вкл' }}</button>
+            </form>
+            <form action="/admin/banners/{{ b.id }}/delete" method="POST" onsubmit="return confirm('Удалить баннер?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1">Удалить</button>
+            </form>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-span-full text-center py-12 text-[#8C735F]">Баннеров пока нет</div>
+    {% endfor %}
+</div>
+{% endblock %}

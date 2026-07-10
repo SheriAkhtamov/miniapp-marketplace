@@ -1,0 +1,43 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+logs/
+backups/
+final_certs/
+letsencrypt/
+letsencrypt-lib/
+certbot/
+media/*
+!media/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / frontend tooling
+node_modules/
+package-lock.json
+!UNICOM HR отдел/AI hr bot/package-lock.json
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local reports and scratch files
+PROJECT_FULL_REPORT.md
+check.py
+*.bak.*
+*.backup

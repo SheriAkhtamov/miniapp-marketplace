@@ -1,0 +1,680 @@
+{% extends "admin/base.html" %}
+
+{% block header %}Категории{% endblock %}
+
+{% block content %}
+{% set is_sa = user and user.role == 'superadmin' %}
+{% set perms = (user.permissions or {}) if user else {} %}
+{% set can_access_products = is_sa or perms.get('products', false) %}
+{% if error %}
+<div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-red-600 text-sm font-medium">
+    {{ error }}
+</div>
+{% endif %}
+{% if success %}
+<div class="mb-4 rounded-xl border border-green-200 bg-green-50 px-5 py-3 text-green-700 text-sm font-medium">
+    {{ success }}
+</div>
+{% endif %}
+
+<div class="mb-4 md:mb-6 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+    <div class="flex flex-wrap items-center gap-2 text-xs font-bold">
+        <span class="chip bg-[#EFE6DB] text-[#3E2310]">Всего: {{ stats.total }}</span>
+        <span class="chip bg-green-100 text-green-700">Активные: {{ stats.active }}</span>
+        <span class="chip bg-gray-100 text-gray-600">Архив: {{ stats.archived }}</span>
+    </div>
+    <div class="flex flex-wrap gap-2">
+        <button type="button" onclick="openCreateCategoryModal()"
+            class="bg-[#6B3F1E] hover:bg-[#543116] text-white font-bold py-2.5 px-4 rounded-xl shadow-lg transition duration-300 inline-flex items-center text-sm">
+            <i class="fas fa-plus mr-2"></i> Добавить категорию
+        </button>
+        {% if can_access_products %}
+        <a href="/admin/products"
+            class="bg-[#EFE6DB] hover:bg-[#E0CCB7] text-[#3E2310] font-bold py-2.5 px-4 rounded-xl transition duration-300 inline-flex items-center text-sm">
+            <i class="fas fa-box mr-2"></i> К товарам
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="glass-card p-4 md:p-5 mb-4 md:mb-6">
+    <form action="/admin/categories/all-products-image" method="POST" enctype="multipart/form-data"
+        class="flex flex-col md:flex-row md:items-center gap-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input id="all-products-remove-image" type="hidden" name="remove_image" value="0">
+
+        <div id="all-products-image-preview"
+            class="w-full md:w-40 h-36 rounded-2xl overflow-hidden bg-[#EFE6DB] flex items-center justify-center text-[#C6A992] flex-shrink-0">
+            {% if all_products_image_path %}
+            <img src="{{ all_products_image_path }}" class="w-full h-full object-cover" alt="">
+            {% else %}
+            <i class="fas fa-border-all text-3xl"></i>
+            {% endif %}
+        </div>
+
+        <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-base font-extrabold text-[#3E2310]">Карточка «Все товары»</h2>
+                <span class="chip bg-[#EFE6DB] text-[#3E2310]">Активных товаров: {{ all_products_count }}</span>
+            </div>
+            <p class="mt-1 text-sm text-[#8C735F] font-medium">
+                Это первая карточка в miniapp: «Все товары» / «Barcha tovarlar».
+            </p>
+            <div class="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                <input id="all-products-image-input" name="image" type="file"
+                    accept="image/*,video/mp4,video/webm,video/quicktime,video/x-msvideo"
+                    data-admin-image-cropper data-crop-preserve-animation="true"
+                    data-crop-title="Медиа карточки Все товары"
+                    data-crop-width="868" data-crop-height="1024"
+                    class="block w-full text-sm text-[#8C735F] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#3E2310]/10 file:text-[#3E2310]">
+                <button type="submit" class="admin-btn-accent flex-shrink-0 justify-center">
+                    <i class="fas fa-save mr-1.5"></i> Сохранить медиа
+                </button>
+                <button id="all-products-image-remove-btn" type="button"
+                    class="{% if not all_products_image_path %}hidden {% endif %}px-3 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100 transition flex-shrink-0">
+                    Убрать медиа
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="glass-card overflow-hidden">
+    <div id="categories-mobile-sort" class="mobile-cards space-y-3 p-3 md:hidden">
+        {% for row in categories %}
+        {% set category = row.category %}
+        {% set products_url = '/admin/products?category_id=' ~ category.id ~ '&status=all' %}
+        <div class="rounded-xl border border-[#E0CCB7]/50 bg-white p-3.5" data-category-id="{{ category.id }}">
+            <div class="flex items-start justify-between gap-3">
+                <button type="button" class="category-drag-handle mt-1 w-9 h-9 rounded-xl bg-[#EFE6DB] text-[#8C735F] flex items-center justify-center flex-shrink-0" title="Перетащить">
+                    <i class="fas fa-grip-vertical"></i>
+                </button>
+                <div class="w-14 h-14 rounded-xl overflow-hidden bg-[#EFE6DB] flex items-center justify-center flex-shrink-0">
+                    {% if category.image_path %}
+                    <img src="{{ category.image_path }}" class="w-full h-full object-cover">
+                    {% else %}
+                    <i class="fas fa-image text-[#C6A992] text-lg"></i>
+                    {% endif %}
+                </div>
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            {% if can_access_products and row.total_products > 0 %}
+                            <a href="{{ products_url }}" class="font-bold text-[#3E2310] text-sm hover:text-[#6B3F1E] transition">
+                                {{ category.name_ru }}
+                            </a>
+                            {% else %}
+                            <p class="font-bold text-[#3E2310] text-sm">{{ category.name_ru }}</p>
+                            {% endif %}
+                            <p class="text-xs text-[#8C735F] mt-1">{{ category.name_uz }}</p>
+                        </div>
+                        {% if category.is_active %}
+                        <span class="bg-green-100 text-green-700 py-0.5 px-2 rounded-full text-[10px] font-bold flex-shrink-0">Активна</span>
+                        {% else %}
+                        <span class="bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-[10px] font-bold flex-shrink-0">Архив</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3 flex flex-wrap gap-2 text-[11px] font-bold">
+                {% if can_access_products and row.total_products > 0 %}
+                <a href="{{ products_url }}" class="chip bg-[#EFE6DB] text-[#3E2310] hover:bg-[#E0CCB7] transition">
+                    Всего товаров: {{ row.total_products }}
+                </a>
+                <a href="{{ products_url }}" class="chip {% if row.active_products > 0 %}bg-amber-100 text-amber-700 hover:bg-amber-200{% else %}bg-green-100 text-green-700 hover:bg-green-200{% endif %} transition">
+                    Активных: {{ row.active_products }}
+                </a>
+                {% else %}
+                <span class="chip bg-[#EFE6DB] text-[#3E2310]">Всего товаров: {{ row.total_products }}</span>
+                <span class="chip {% if row.active_products > 0 %}bg-amber-100 text-amber-700{% else %}bg-green-100 text-green-700{% endif %}">Активных: {{ row.active_products }}</span>
+                {% endif %}
+            </div>
+
+            {% if row.total_products > 0 and category.is_active %}
+            <p class="mt-3 text-xs text-amber-700 font-medium">Пока в категории есть товары, архивировать её нельзя.</p>
+            {% endif %}
+
+            <div class="mt-3 flex items-center gap-2">
+                <button type="button"
+                    class="flex-1 h-9 rounded-xl bg-[#EFE6DB] text-[#6B3F1E] hover:bg-[#6B3F1E] hover:text-white transition inline-flex items-center justify-center text-sm font-bold"
+                    data-category-edit
+                    data-category-edit-id="{{ category.id }}"
+                    data-name-ru="{{ category.name_ru }}"
+                    data-name-uz="{{ category.name_uz }}"
+                    data-image-path="{{ category.image_path or '' }}"
+                    data-total-products="{{ row.total_products }}"
+                    data-active-products="{{ row.active_products }}"
+                    data-is-active="{{ 'true' if category.is_active else 'false' }}">
+                    <i class="fas fa-edit mr-2"></i> Редактировать
+                </button>
+                <button type="button"
+                    class="w-9 h-9 rounded-xl bg-[#EFE6DB] text-[#6B3F1E] hover:bg-[#6B3F1E] hover:text-white transition inline-flex items-center justify-center"
+                    title="Скопировать ссылку"
+                    data-copy-payload="category_{{ category.id }}"
+                    data-copy-success="Ссылка на категорию скопирована">
+                    <i class="fas fa-link"></i>
+                </button>
+                {% if category.is_active and row.total_products > 0 %}
+                <button type="button" disabled
+                    class="flex-1 h-9 rounded-xl bg-gray-100 text-gray-400 inline-flex items-center justify-center text-sm font-bold cursor-not-allowed"
+                    title="Архивация недоступна, пока в категории есть товары">
+                    В архив
+                </button>
+                {% else %}
+                <form action="/admin/categories/{{ category.id }}/toggle" method="POST" class="flex-1">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit"
+                        class="w-full h-9 rounded-xl bg-[#3E2310] text-white hover:bg-[#543116] transition text-sm font-bold"
+                        onclick="return confirm('{{ 'Вернуть категорию из архива?' if not category.is_active else 'Архивировать категорию?' }}');">
+                        {{ 'Восстановить' if not category.is_active else 'В архив' }}
+                    </button>
+                </form>
+                {% endif %}
+                {% if row.total_products == 0 %}
+                <form action="/admin/categories/{{ category.id }}/delete" method="POST" class="inline"
+                    onsubmit="return confirm('Удалить пустую категорию?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit"
+                        class="w-9 h-9 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition inline-flex items-center justify-center">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </form>
+                {% else %}
+                <button type="button" disabled
+                    class="w-9 h-9 rounded-xl bg-gray-100 text-gray-400 inline-flex items-center justify-center cursor-not-allowed"
+                    title="Удаление доступно только для пустых категорий">
+                    <i class="fas fa-trash"></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if not categories %}
+        <div class="rounded-xl border border-dashed border-[#D6C0AD] bg-white/70 p-6 text-center text-sm text-[#8C735F]">
+            Категорий пока нет. Добавьте первую через кнопку выше.
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="hidden md:block overflow-x-auto">
+        <table class="min-w-full table-auto">
+            <thead>
+                <tr class="bg-[#EFE6DB] text-[#3E2310] uppercase text-xs leading-normal font-bold">
+                    <th class="py-4 px-4 text-center w-14">Порядок</th>
+                    <th class="py-4 px-4 text-center w-20">Медиа</th>
+                    <th class="py-4 px-6 text-left">Название (RU)</th>
+                    <th class="py-4 px-6 text-left">Название (UZ)</th>
+                    <th class="py-4 px-6 text-center">Товары</th>
+                    <th class="py-4 px-6 text-center">Статус</th>
+                    <th class="py-4 px-6 text-center">Действия</th>
+                </tr>
+            </thead>
+            <tbody id="categories-table-sort" class="text-[#3E2310] text-sm font-medium">
+                {% for row in categories %}
+                {% set category = row.category %}
+                {% set products_url = '/admin/products?category_id=' ~ category.id ~ '&status=all' %}
+                <tr class="border-b border-[#EFE6DB] hover:bg-[#F9F4EF] transition" data-category-id="{{ category.id }}">
+                    <td class="py-4 px-4 text-center">
+                        <button type="button" class="category-drag-handle w-9 h-9 rounded-xl bg-[#EFE6DB] text-[#8C735F] hover:text-[#3E2310] flex items-center justify-center mx-auto cursor-grab active:cursor-grabbing" title="Перетащить">
+                            <i class="fas fa-grip-vertical"></i>
+                        </button>
+                    </td>
+                    <td class="py-4 px-4 text-center">
+                        {% if category.image_path %}
+                        <img src="{{ category.image_path }}" class="h-12 w-12 rounded-xl object-cover mx-auto shadow-sm">
+                        {% else %}
+                        <div class="h-12 w-12 rounded-xl bg-[#EFE6DB] mx-auto flex items-center justify-center text-[#C6A992]">
+                            <i class="fas fa-image"></i>
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td class="py-4 px-6 font-bold">
+                        {% if can_access_products and row.total_products > 0 %}
+                        <a href="{{ products_url }}" class="hover:text-[#6B3F1E] transition">
+                            {{ category.name_ru }}
+                        </a>
+                        {% else %}
+                        {{ category.name_ru }}
+                        {% endif %}
+                    </td>
+                    <td class="py-4 px-6 text-[#8C735F]">{{ category.name_uz }}</td>
+                    <td class="py-4 px-6 text-center">
+                        <div class="flex items-center justify-center gap-2 flex-wrap">
+                            {% if can_access_products and row.total_products > 0 %}
+                            <a href="{{ products_url }}" class="chip bg-[#EFE6DB] text-[#3E2310] hover:bg-[#E0CCB7] transition">
+                                Всего {{ row.total_products }}
+                            </a>
+                            <a href="{{ products_url }}" class="chip {% if row.active_products > 0 %}bg-amber-100 text-amber-700 hover:bg-amber-200{% else %}bg-green-100 text-green-700 hover:bg-green-200{% endif %} transition">
+                                Активных {{ row.active_products }}
+                            </a>
+                            {% else %}
+                            <span class="chip bg-[#EFE6DB] text-[#3E2310]">Всего {{ row.total_products }}</span>
+                            <span class="chip {% if row.active_products > 0 %}bg-amber-100 text-amber-700{% else %}bg-green-100 text-green-700{% endif %}">Активных {{ row.active_products }}</span>
+                            {% endif %}
+                        </div>
+                        {% if row.total_products > 0 and category.is_active %}
+                        <p class="mt-2 text-[11px] text-amber-700">Для архива сначала перенесите товары.</p>
+                        {% endif %}
+                    </td>
+                    <td class="py-4 px-6 text-center">
+                        {% if category.is_active %}
+                        <span class="bg-green-100 text-green-700 py-1 px-3 rounded-full text-xs font-bold">Активна</span>
+                        {% else %}
+                        <span class="bg-gray-100 text-gray-600 py-1 px-3 rounded-full text-xs font-bold">Архив</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-4 px-6">
+                        <div class="flex items-center justify-center gap-2">
+                            <button type="button"
+                                class="h-9 px-4 rounded-xl bg-[#EFE6DB] text-[#6B3F1E] hover:bg-[#6B3F1E] hover:text-white transition inline-flex items-center justify-center text-sm font-bold"
+                                data-category-edit
+                                data-category-edit-id="{{ category.id }}"
+                                data-name-ru="{{ category.name_ru }}"
+                                data-name-uz="{{ category.name_uz }}"
+                                data-image-path="{{ category.image_path or '' }}"
+                                data-total-products="{{ row.total_products }}"
+                                data-active-products="{{ row.active_products }}"
+                                data-is-active="{{ 'true' if category.is_active else 'false' }}">
+                                <i class="fas fa-edit mr-2"></i> Редактировать
+                            </button>
+                            <button type="button"
+                                class="w-9 h-9 rounded-xl bg-[#EFE6DB] text-[#6B3F1E] hover:bg-[#6B3F1E] hover:text-white transition inline-flex items-center justify-center"
+                                title="Скопировать ссылку"
+                                data-copy-payload="category_{{ category.id }}"
+                                data-copy-success="Ссылка на категорию скопирована">
+                                <i class="fas fa-link"></i>
+                            </button>
+                            {% if category.is_active and row.total_products > 0 %}
+                            <button type="button" disabled
+                                class="h-9 px-4 rounded-xl bg-gray-100 text-gray-400 inline-flex items-center justify-center text-sm font-bold cursor-not-allowed"
+                                title="Архивация недоступна, пока в категории есть товары">
+                                В архив
+                            </button>
+                            {% else %}
+                            <form action="/admin/categories/{{ category.id }}/toggle" method="POST">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit"
+                                    class="h-9 px-4 rounded-xl bg-[#3E2310] text-white hover:bg-[#543116] transition text-sm font-bold"
+                                    onclick="return confirm('{{ 'Вернуть категорию из архива?' if not category.is_active else 'Архивировать категорию?' }}');">
+                                    {{ 'Восстановить' if not category.is_active else 'В архив' }}
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% if row.total_products == 0 %}
+                            <form action="/admin/categories/{{ category.id }}/delete" method="POST"
+                                onsubmit="return confirm('Удалить пустую категорию?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit"
+                                    class="w-9 h-9 rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition inline-flex items-center justify-center"
+                                    title="Удалить">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                            {% else %}
+                            <button type="button" disabled
+                                class="w-9 h-9 rounded-xl bg-gray-100 text-gray-400 inline-flex items-center justify-center cursor-not-allowed"
+                                title="Удаление доступно только для пустых категорий">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if not categories %}
+        <div class="p-8 text-center text-sm text-[#8C735F]">
+            Категорий пока нет. Добавьте первую через кнопку выше.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div id="category-modal" class="fixed inset-0 z-50 hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="category-modal-title">
+    <div id="category-modal-backdrop" class="absolute inset-0 bg-[#2A180B]/50 backdrop-blur-sm opacity-0 transition-opacity duration-200" onclick="closeCategoryModal()"></div>
+    <div class="absolute inset-0 flex items-end md:items-center justify-center p-0 md:p-4 pointer-events-none">
+        <div id="category-modal-panel"
+            class="pointer-events-auto relative w-full md:max-w-lg bg-white rounded-t-3xl md:rounded-3xl shadow-2xl border border-[#E0CCB7]/60 overflow-hidden max-h-[92vh] flex flex-col opacity-0 translate-y-4 md:scale-[0.97] md:translate-y-0 transition-all duration-200 ease-out">
+            <!-- Header -->
+            <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-[#E0CCB7]/60">
+                <div class="min-w-0 flex items-center gap-3">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-[#EFE6DB] text-[#6B3F1E] flex items-center justify-center">
+                        <i id="category-modal-icon" class="fas fa-layer-group"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h3 id="category-modal-title" class="text-base md:text-lg font-extrabold text-[#3E2310] truncate">Новая категория</h3>
+                        <p id="category-modal-subtitle" class="text-[11px] md:text-xs text-[#8C735F] mt-0.5 truncate">Добавьте название категории на двух языках.</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeCategoryModal()"
+                    class="flex-shrink-0 w-10 h-10 rounded-xl bg-[#EFE6DB] text-[#6B3F1E] hover:bg-[#6B3F1E] hover:text-white transition inline-flex items-center justify-center"
+                    aria-label="Закрыть">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <form id="category-modal-form" method="POST" enctype="multipart/form-data" class="flex-1 overflow-y-auto p-5 space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input id="category-remove-image" type="hidden" name="remove_image" value="0">
+                <div>
+                    <label class="block text-[#8C735F] text-[11px] font-bold uppercase tracking-wider mb-1.5">Название (RU)</label>
+                    <input id="category-name-ru" name="name_ru" type="text" class="admin-input w-full" placeholder="Например: Посуда" required>
+                </div>
+                <div>
+                    <label class="block text-[#8C735F] text-[11px] font-bold uppercase tracking-wider mb-1.5">Название (UZ)</label>
+                    <input id="category-name-uz" name="name_uz" type="text" class="admin-input w-full" placeholder="Masalan: Idishlar" required>
+                </div>
+
+                <div>
+                    <label class="block text-[#8C735F] text-[11px] font-bold uppercase tracking-wider mb-1.5">Медиа категории</label>
+                    <div class="flex items-center gap-3 rounded-2xl bg-[#F9F4EF] border border-[#E0CCB7]/60 p-3">
+                        <div id="category-image-preview" class="w-20 h-20 rounded-2xl bg-[#EFE6DB] overflow-hidden flex items-center justify-center text-[#C6A992] flex-shrink-0">
+                            <i class="fas fa-image text-xl"></i>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <input id="category-image-input" name="image" type="file"
+                                accept="image/*,video/mp4,video/webm,video/quicktime,video/x-msvideo"
+                                data-admin-image-cropper data-crop-preserve-animation="true"
+                                data-crop-title="Медиа категории"
+                                data-crop-width="868" data-crop-height="1024"
+                                class="block w-full text-sm text-[#8C735F] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#3E2310]/10 file:text-[#3E2310]">
+                            <div class="mt-2 flex items-center gap-2">
+                                <button id="category-image-remove-btn" type="button"
+                                    class="hidden px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100 transition">
+                                    Убрать медиа
+                                </button>
+                                <span class="text-[11px] text-[#8C735F]">Фото сохранится как WebP, GIF/видео — как зацикленный GIF.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="category-modal-meta" class="hidden rounded-2xl bg-[#F9F4EF] border border-[#E0CCB7]/60 px-4 py-3 text-sm text-[#3E2310]">
+                    <div class="text-[11px] font-bold uppercase tracking-wider text-[#8C735F] mb-2">Состояние</div>
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-[#8C735F]">Статус</span>
+                        <span id="category-modal-status" class="font-bold"></span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 mt-2">
+                        <span class="text-[#8C735F]">Всего товаров</span>
+                        <span id="category-modal-total" class="font-bold"></span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 mt-2">
+                        <span class="text-[#8C735F]">Активных товаров</span>
+                        <span id="category-modal-active" class="font-bold"></span>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Sticky footer -->
+            <div class="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#E0CCB7]/60 bg-white">
+                <button type="button" onclick="closeCategoryModal()"
+                    class="px-4 py-2.5 rounded-xl bg-[#EFE6DB] text-[#3E2310] font-bold text-sm hover:bg-[#E0CCB7] transition">
+                    Отмена
+                </button>
+                <button id="category-modal-submit" type="submit" form="category-modal-form" class="admin-btn-accent">
+                    <i class="fas fa-save mr-1.5"></i> Сохранить
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+(function() {
+    const modal = document.getElementById('category-modal');
+    const backdrop = document.getElementById('category-modal-backdrop');
+    const panel = document.getElementById('category-modal-panel');
+    const form = document.getElementById('category-modal-form');
+    const title = document.getElementById('category-modal-title');
+    const subtitle = document.getElementById('category-modal-subtitle');
+    const submitBtn = document.getElementById('category-modal-submit');
+    const iconEl = document.getElementById('category-modal-icon');
+    const inputRu = document.getElementById('category-name-ru');
+    const inputUz = document.getElementById('category-name-uz');
+    const imageInput = document.getElementById('category-image-input');
+    const imagePreview = document.getElementById('category-image-preview');
+    const removeImageInput = document.getElementById('category-remove-image');
+    const removeImageBtn = document.getElementById('category-image-remove-btn');
+    const meta = document.getElementById('category-modal-meta');
+    const statusEl = document.getElementById('category-modal-status');
+    const totalEl = document.getElementById('category-modal-total');
+    const activeEl = document.getElementById('category-modal-active');
+    const initialModal = {{ initial_modal | tojson }};
+    const initialCategoryId = {{ initial_category_id | tojson }};
+    const allProductsImageInput = document.getElementById('all-products-image-input');
+    const allProductsImagePreview = document.getElementById('all-products-image-preview');
+    const allProductsRemoveInput = document.getElementById('all-products-remove-image');
+    const allProductsRemoveBtn = document.getElementById('all-products-image-remove-btn');
+
+    let closeTimer = null;
+
+    function isVideoFile(file) {
+        if (!file) return false;
+        if (file.type && file.type.startsWith('video/')) return true;
+        return /\.(mp4|webm|mov|avi)$/i.test(file.name || '');
+    }
+
+    function mediaPreviewMarkup(src, isVideo) {
+        if (isVideo) {
+            return `<video src="${src}" class="w-full h-full object-cover" muted autoplay loop playsinline></video>`;
+        }
+        return `<img src="${src}" class="w-full h-full object-cover" alt="">`;
+    }
+
+    function setAllProductsImagePreview(src, isVideo = false) {
+        if (!allProductsImagePreview || !allProductsRemoveBtn) return;
+        if (src) {
+            allProductsImagePreview.innerHTML = mediaPreviewMarkup(src, isVideo);
+            allProductsRemoveBtn.classList.remove('hidden');
+        } else {
+            allProductsImagePreview.innerHTML = '<i class="fas fa-border-all text-3xl"></i>';
+            allProductsRemoveBtn.classList.add('hidden');
+        }
+    }
+
+    if (allProductsImageInput) {
+        allProductsImageInput.addEventListener('change', () => {
+            const file = allProductsImageInput.files && allProductsImageInput.files[0];
+            if (allProductsRemoveInput) allProductsRemoveInput.value = '0';
+            if (!file) return;
+            setAllProductsImagePreview(URL.createObjectURL(file), isVideoFile(file));
+        });
+    }
+
+    if (allProductsRemoveBtn) {
+        allProductsRemoveBtn.addEventListener('click', () => {
+            if (allProductsImageInput) allProductsImageInput.value = '';
+            if (allProductsRemoveInput) allProductsRemoveInput.value = '1';
+            setAllProductsImagePreview('');
+        });
+    }
+
+    function setBodyLocked(locked) {
+        document.body.style.overflow = locked ? 'hidden' : '';
+    }
+
+    function showPanel() {
+        requestAnimationFrame(() => {
+            backdrop.style.opacity = '1';
+            panel.classList.remove('opacity-0', 'translate-y-4', 'md:scale-[0.97]');
+            panel.classList.add('opacity-100', 'translate-y-0', 'md:scale-100');
+        });
+    }
+
+    function setImagePreview(src, isVideo = false) {
+        if (src) {
+            imagePreview.innerHTML = mediaPreviewMarkup(src, isVideo);
+            removeImageBtn.classList.remove('hidden');
+        } else {
+            imagePreview.innerHTML = '<i class="fas fa-image text-xl"></i>';
+            removeImageBtn.classList.add('hidden');
+        }
+    }
+
+    window.closeCategoryModal = function closeCategoryModal() {
+        backdrop.style.opacity = '0';
+        panel.classList.remove('opacity-100', 'translate-y-0', 'md:scale-100');
+        panel.classList.add('opacity-0', 'translate-y-4', 'md:scale-[0.97]');
+
+        if (closeTimer) clearTimeout(closeTimer);
+        closeTimer = setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.setAttribute('aria-hidden', 'true');
+            setBodyLocked(false);
+            closeTimer = null;
+        }, 200);
+    };
+
+    window.openCreateCategoryModal = function openCreateCategoryModal() {
+        if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+        form.dataset.submitting = '';
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+        title.textContent = 'Новая категория';
+        subtitle.textContent = 'Добавьте название категории на русском и узбекском языках.';
+        iconEl.className = 'fas fa-plus';
+        form.action = '/admin/categories/new';
+        inputRu.value = '';
+        inputUz.value = '';
+        imageInput.value = '';
+        removeImageInput.value = '0';
+        setImagePreview('');
+        submitBtn.innerHTML = '<i class="fas fa-plus mr-1.5"></i> Создать';
+        meta.classList.add('hidden');
+        modal.classList.remove('hidden');
+        modal.setAttribute('aria-hidden', 'false');
+        setBodyLocked(true);
+        showPanel();
+        setTimeout(() => inputRu.focus(), 120);
+    };
+
+    function openEditCategoryModal(button) {
+        if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+        const totalProducts = Number(button.dataset.totalProducts || '0');
+        const activeProducts = Number(button.dataset.activeProducts || '0');
+        const isActive = button.dataset.isActive === 'true';
+        const categoryId = button.dataset.categoryEditId;
+
+        form.dataset.submitting = '';
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+        title.textContent = 'Редактирование категории';
+        subtitle.textContent = 'Измените названия и сохраните изменения.';
+        iconEl.className = 'fas fa-edit';
+        form.action = `/admin/categories/${categoryId}/edit`;
+        inputRu.value = button.dataset.nameRu || '';
+        inputUz.value = button.dataset.nameUz || '';
+        imageInput.value = '';
+        removeImageInput.value = '0';
+        setImagePreview(button.dataset.imagePath || '');
+        submitBtn.innerHTML = '<i class="fas fa-save mr-1.5"></i> Сохранить';
+
+        if (isActive) {
+            statusEl.textContent = 'Активна';
+            statusEl.className = 'font-bold text-green-700';
+        } else {
+            statusEl.textContent = 'В архиве';
+            statusEl.className = 'font-bold text-[#8C735F]';
+        }
+        totalEl.textContent = String(totalProducts);
+        activeEl.textContent = String(activeProducts);
+        activeEl.className = activeProducts > 0 ? 'font-bold text-amber-700' : 'font-bold text-[#3E2310]';
+        meta.classList.remove('hidden');
+
+        modal.classList.remove('hidden');
+        modal.setAttribute('aria-hidden', 'false');
+        setBodyLocked(true);
+        showPanel();
+        setTimeout(() => inputRu.focus(), 120);
+    }
+
+    document.querySelectorAll('[data-category-edit]').forEach((button) => {
+        button.addEventListener('click', () => openEditCategoryModal(button));
+    });
+
+    form.addEventListener('submit', (event) => {
+        if (form.dataset.submitting === '1') {
+            event.preventDefault();
+            return;
+        }
+        form.dataset.submitting = '1';
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-70', 'cursor-not-allowed');
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Сохраняем';
+    });
+
+    imageInput.addEventListener('change', () => {
+        const file = imageInput.files && imageInput.files[0];
+        removeImageInput.value = '0';
+        if (!file) {
+            setImagePreview('');
+            return;
+        }
+        setImagePreview(URL.createObjectURL(file), isVideoFile(file));
+    });
+
+    removeImageBtn.addEventListener('click', () => {
+        imageInput.value = '';
+        removeImageInput.value = '1';
+        setImagePreview('');
+    });
+
+    async function persistCategoryOrder(sortableEl) {
+        const ids = Array.from(sortableEl.querySelectorAll('[data-category-id]'))
+            .map((item) => Number(item.dataset.categoryId))
+            .filter(Boolean);
+        if (!ids.length) return;
+
+        try {
+            const response = await fetch('/admin/categories/reorder', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': {{ csrf_token | tojson }},
+                },
+                body: JSON.stringify({ ids }),
+            });
+            if (!response.ok) throw new Error('save_failed');
+        } catch (error) {
+            window.location.reload();
+        }
+    }
+
+    function initSortableList(element) {
+        if (!element || typeof Sortable === 'undefined') return;
+        Sortable.create(element, {
+            animation: 160,
+            handle: '.category-drag-handle',
+            ghostClass: 'bg-[#F9F4EF]',
+            dragClass: 'opacity-80',
+            onEnd: () => persistCategoryOrder(element),
+        });
+    }
+
+    initSortableList(document.getElementById('categories-mobile-sort'));
+    initSortableList(document.getElementById('categories-table-sort'));
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
+            closeCategoryModal();
+        }
+    });
+
+    if (initialModal === 'create') {
+        openCreateCategoryModal();
+    } else if (initialModal === 'edit' && initialCategoryId) {
+        const button = document.querySelector(`[data-category-edit-id="${initialCategoryId}"]`);
+        if (button) {
+            openEditCategoryModal(button);
+        }
+    }
+})();
+</script>
+<script src="/static/js/admin_share_links.js?v=1"></script>
+{% endblock %}

@@ -1,0 +1,198 @@
+{% extends "admin/base.html" %}
+{% block header %}Товары баннера{% endblock %}
+
+{% block content %}
+{% macro admin_product_price(product) -%}
+    {% if product.has_discount %}
+    <div class="text-xs leading-tight">
+        <span class="block font-extrabold text-red-600 tabular-nums">{{ product.discount_price | number_format }} сум</span>
+        <span class="block font-bold text-[#B09B8B] line-through tabular-nums text-[10px]">{{ product.price | number_format }} сум</span>
+        <span class="mt-1 inline-flex rounded-md border border-red-100 bg-red-50 px-1.5 py-0.5 text-[10px] font-extrabold text-red-600">-{{ product.discount_percent }}%</span>
+    </div>
+    {% else %}
+    <p class="text-xs text-[#8C735F] font-semibold tabular-nums">{{ product.price | number_format }} сум</p>
+    {% endif %}
+{%- endmacro %}
+<div class="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+    <div class="flex items-center gap-3 min-w-0">
+        <a href="/admin/banners"
+            class="w-10 h-10 rounded-xl bg-[#EFE6DB] text-[#3E2310] hover:bg-[#6B3F1E] hover:text-white transition flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <div class="min-w-0">
+            <h2 class="text-xl font-extrabold text-[#3E2310] truncate">{{ banner.title or 'Баннер' }}</h2>
+            <p class="text-sm text-[#8C735F] font-semibold">{{ attached_products | length }} товаров прикреплено</p>
+        </div>
+    </div>
+    <button type="button" onclick="openAddProductsModal()"
+        class="h-10 px-4 rounded-xl bg-[#3E2310] text-white text-sm font-bold hover:bg-[#543116] transition flex items-center justify-center gap-2">
+        <i class="fas fa-plus"></i>
+        <span>Добавить товар</span>
+    </button>
+</div>
+
+{% if attached_products %}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+    {% for product in attached_products %}
+    <div class="glass-card p-3 flex gap-3">
+        {% if product.image_path %}
+        <img src="{{ product.image_path }}" class="w-16 h-16 rounded-xl object-cover flex-shrink-0">
+        {% else %}
+        <div class="w-16 h-16 rounded-xl bg-[#EFE6DB] text-[#C6A992] flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-box"></i>
+        </div>
+        {% endif %}
+        <div class="min-w-0 flex-1">
+            <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                    <p class="text-sm font-extrabold text-[#3E2310] truncate">{{ product.name_ru }}</p>
+                    {{ admin_product_price(product) }}
+                </div>
+                <span class="bg-green-100 text-green-700 py-0.5 px-2 rounded-full text-[10px] font-bold flex-shrink-0">В баннере</span>
+            </div>
+            {% if not product.is_active %}
+            <span class="mt-1 inline-block bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-[10px] font-bold">Архив</span>
+            {% endif %}
+            <form action="/admin/banners/{{ banner.id }}/products/{{ product.id }}/toggle" method="POST" class="mt-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit"
+                    class="w-full h-9 rounded-xl bg-red-50 text-red-600 text-sm font-bold hover:bg-red-100 transition">
+                    <i class="fas fa-minus mr-1.5"></i>Убрать
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="glass-card px-4 py-10 text-center">
+    <div class="mx-auto w-14 h-14 rounded-2xl bg-[#EFE6DB] text-[#6B3F1E] flex items-center justify-center text-xl mb-4">
+        <i class="fas fa-link"></i>
+    </div>
+    <h4 class="text-lg font-extrabold text-[#3E2310]">Товары еще не прикреплены</h4>
+    <p class="text-sm text-[#8C735F] font-semibold mt-1">Добавьте товары, которые должны открываться из этого баннера.</p>
+    <button type="button" onclick="openAddProductsModal()"
+        class="mt-5 h-10 px-4 rounded-xl bg-[#3E2310] text-white text-sm font-bold hover:bg-[#543116] transition inline-flex items-center justify-center gap-2">
+        <i class="fas fa-plus"></i>
+        <span>Добавить товар</span>
+    </button>
+</div>
+{% endif %}
+
+<div id="add-products-modal" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
+    <div class="absolute inset-0 bg-black/45" onclick="closeAddProductsModal()"></div>
+    <div class="absolute inset-x-3 top-4 bottom-4 md:inset-x-auto md:left-1/2 md:top-10 md:bottom-10 md:w-[680px] md:-translate-x-1/2">
+        <div class="h-full rounded-2xl bg-[#FCF9F5] shadow-2xl border border-[#E0CCB7] flex flex-col overflow-hidden">
+            <div class="px-4 py-3 border-b border-[#E0CCB7]/60 flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                    <h3 class="text-base font-extrabold text-[#3E2310] truncate">Добавить товар в баннер</h3>
+                    <p class="text-xs text-[#8C735F] font-semibold">{{ products | length }} товаров в каталоге</p>
+                </div>
+                <button type="button" onclick="closeAddProductsModal()"
+                    class="w-9 h-9 rounded-xl bg-[#EFE6DB] text-[#3E2310] hover:bg-[#6B3F1E] hover:text-white transition flex items-center justify-center flex-shrink-0"
+                    aria-label="Закрыть">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="p-4 border-b border-[#E0CCB7]/60">
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-[#8C735F] text-sm"></i>
+                    <input type="text" id="banner-product-search" placeholder="Поиск товара"
+                        class="w-full bg-white border border-[#E0CCB7] rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#6B3F1E]/20">
+                </div>
+            </div>
+
+            <div id="banner-products-list" class="flex-1 overflow-y-auto p-3 space-y-2">
+                {% for product in products %}
+                {% set attached = product.id in attached_ids %}
+                <div class="product-option rounded-xl bg-white border border-[#E0CCB7]/60 p-3 flex gap-3"
+                    data-product-search="{{ product.id }} {{ product.name_ru or '' }} {{ product.name_uz or '' }}">
+                    {% if product.image_path %}
+                    <img src="{{ product.image_path }}" class="w-14 h-14 rounded-xl object-cover flex-shrink-0">
+                    {% else %}
+                    <div class="w-14 h-14 rounded-xl bg-[#EFE6DB] text-[#C6A992] flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-box"></i>
+                    </div>
+                    {% endif %}
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-extrabold text-[#3E2310] truncate">{{ product.name_ru }}</p>
+                        {{ admin_product_price(product) }}
+                        {% if not product.is_active %}
+                        <span class="mt-1 inline-block bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-[10px] font-bold">Архив</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center flex-shrink-0">
+                        {% if attached %}
+                        <span class="h-9 px-3 rounded-xl bg-green-50 text-green-700 text-xs font-bold flex items-center justify-center">
+                            Уже есть
+                        </span>
+                        {% else %}
+                        <form action="/admin/banners/{{ banner.id }}/products/{{ product.id }}/toggle" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit"
+                                class="h-9 px-3 rounded-xl bg-[#3E2310] text-white text-xs font-bold hover:bg-[#543116] transition">
+                                Прикрепить
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-10 text-[#8C735F] font-semibold">Товаров для добавления нет</div>
+                {% endfor %}
+                <div id="banner-products-empty" class="hidden text-center py-10 text-[#8C735F] font-semibold">
+                    Ничего не найдено
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function openAddProductsModal() {
+    const modal = document.getElementById('add-products-modal');
+    const search = document.getElementById('banner-product-search');
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(function () { search.focus(); }, 50);
+}
+
+function closeAddProductsModal() {
+    const modal = document.getElementById('add-products-modal');
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+(function () {
+    const search = document.getElementById('banner-product-search');
+    const rows = Array.from(document.querySelectorAll('.product-option'));
+    const empty = document.getElementById('banner-products-empty');
+
+    if (!search) return;
+
+    function applyFilter() {
+        const query = search.value.trim().toLowerCase();
+        let visibleCount = 0;
+
+        rows.forEach(function (row) {
+            const haystack = (row.dataset.productSearch || '').toLowerCase();
+            const isVisible = !query || haystack.includes(query);
+            row.classList.toggle('hidden', !isVisible);
+            if (isVisible) visibleCount += 1;
+        });
+
+        if (empty) {
+            empty.classList.toggle('hidden', visibleCount > 0);
+        }
+    }
+
+    search.addEventListener('input', applyFilter);
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeAddProductsModal();
+        }
+    });
+})();
+</script>
+{% endblock %}

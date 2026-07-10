@@ -1,0 +1,133 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Редактирование сотрудника — {{ manager.login }}{% endblock %}
+{% block header %}Сотрудник: {{ manager.login }}{% endblock %}
+
+{% block content %}
+
+{% if error %}
+<div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-red-600 text-sm font-medium">
+    {{ error }}
+</div>
+{% endif %}
+{% if success %}
+<div class="mb-6 rounded-xl border border-green-200 bg-green-50 px-5 py-3 text-green-700 text-sm font-medium">
+    {{ success }}
+</div>
+{% endif %}
+
+<div class="mb-4">
+    <a href="/admin/managers" class="text-sm font-semibold text-[#6B3F1E] hover:text-[#543116]">
+        <i class="fas fa-arrow-left mr-1"></i> Назад к списку
+    </a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+    <!-- ── Учётные данные ── -->
+    <div class="glass-card p-6">
+        <h4 class="text-lg font-bold text-[#3E2310] mb-5">
+            <i class="fas fa-key text-[#6B3F1E] mr-2"></i> Учётные данные
+        </h4>
+
+        <!-- Current credentials (view) -->
+        <div class="bg-[#F9F4EF] rounded-xl p-4 mb-5">
+            <p class="text-xs text-[#8C735F] font-bold uppercase tracking-wider mb-2">Текущие данные</p>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-[#8C735F]">Логин:</span>
+                    <span class="text-sm font-bold text-[#3E2310] select-all">{{ manager.login }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-[#8C735F]">Пароль:</span>
+                    <span class="text-sm font-bold text-[#3E2310]">••••••••</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Change credentials form -->
+        <form action="/admin/managers/{{ manager.id }}/credentials" method="POST" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <p class="text-xs text-[#8C735F] font-bold uppercase tracking-wider">Изменить данные</p>
+            <div>
+                <label class="block text-[#8C735F] text-xs font-bold uppercase tracking-wider mb-1.5">Новый логин</label>
+                <input name="new_login" type="text" value="{{ manager.login }}" class="admin-input w-full" required>
+            </div>
+            <div>
+                <label class="block text-[#8C735F] text-xs font-bold uppercase tracking-wider mb-1.5">Новый пароль</label>
+                <input name="new_password" type="text" class="admin-input w-full" placeholder="Оставьте пустым, если не меняете">
+            </div>
+            <button type="submit" class="admin-btn-accent w-full">
+                <i class="fas fa-save mr-1.5"></i> Сохранить данные
+            </button>
+        </form>
+    </div>
+
+    <!-- ── Разрешения ── -->
+    <div class="glass-card p-6">
+        <h4 class="text-lg font-bold text-[#3E2310] mb-5">
+            <i class="fas fa-shield-alt text-[#6B3F1E] mr-2"></i> Доступ к разделам
+        </h4>
+
+        <form action="/admin/managers/{{ manager.id }}/permissions" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="space-y-3 mb-6">
+                {% for key, label in sections.items() %}
+                {% set checked = (manager.permissions or {}).get(key, false) %}
+                <label class="flex items-center justify-between bg-[#F9F4EF] rounded-xl px-4 py-3 cursor-pointer hover:bg-[#EFE6DB] transition group">
+                    <div class="flex items-center gap-3">
+                        {% if key == 'dashboard' %}
+                        <i class="fas fa-chart-pie text-sm text-[#8C735F] w-5 text-center"></i>
+                        {% elif key == 'products' %}
+                        <i class="fas fa-box text-sm text-[#8C735F] w-5 text-center"></i>
+                        {% elif key == 'categories' %}
+                        <i class="fas fa-layer-group text-sm text-[#8C735F] w-5 text-center"></i>
+                        {% elif key == 'orders' %}
+                        <i class="fas fa-shopping-cart text-sm text-[#8C735F] w-5 text-center"></i>
+                        {% elif key == 'users' %}
+                        <i class="fas fa-users text-sm text-[#8C735F] w-5 text-center"></i>
+                        {% elif key == 'mailing' %}
+                        <i class="fas fa-paper-plane text-sm text-[#8C735F] w-5 text-center"></i>
+                        {% elif key == 'promo' %}
+                        <i class="fas fa-ticket-alt text-sm text-[#8C735F] w-5 text-center"></i>
+                        {% elif key == 'banners' %}
+                        <i class="fas fa-images text-sm text-[#8C735F] w-5 text-center"></i>
+                        {% elif key == 'support' %}
+                        <i class="fas fa-headset text-sm text-[#8C735F] w-5 text-center"></i>
+                        {% elif key == 'audit' %}
+                        <i class="fas fa-history text-sm text-[#8C735F] w-5 text-center"></i>
+                        {% elif key == 'settings' %}
+                        <i class="fas fa-cog text-sm text-[#8C735F] w-5 text-center"></i>
+                        {% elif key == 'analytics' %}
+                        <i class="fas fa-chart-bar text-sm text-[#8C735F] w-5 text-center"></i>
+                        {% endif %}
+                        <span class="text-sm font-semibold text-[#3E2310]">{{ label }}</span>
+                    </div>
+                    <div class="relative">
+                        <input type="checkbox" name="perm_{{ key }}" class="sr-only peer" {% if checked %}checked{% endif %}>
+                        <div class="w-10 h-5 bg-gray-300 rounded-full peer-checked:bg-[#16a34a] transition-colors"></div>
+                        <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform"></div>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+
+            <div class="flex gap-3">
+                <button type="button" onclick="toggleAll(true)" class="admin-btn text-xs flex-1">Включить все</button>
+                <button type="button" onclick="toggleAll(false)" class="admin-btn text-xs flex-1 !bg-[#8C735F]">Выключить все</button>
+            </div>
+
+            <button type="submit" class="admin-btn-accent w-full mt-4">
+                <i class="fas fa-save mr-1.5"></i> Сохранить разрешения
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleAll(state) {
+    document.querySelectorAll('input[type=checkbox][name^=perm_]').forEach(cb => cb.checked = state);
+}
+</script>
+{% endblock %}

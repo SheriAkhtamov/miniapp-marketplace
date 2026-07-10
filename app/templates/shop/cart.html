@@ -1,0 +1,166 @@
+{% extends "shop/base.html" %}
+
+{% block content %}
+<div class="sticky top-0 page-header z-30 px-4 py-3">
+    <h1 class="text-lg font-extrabold text-[#3E2310]">{{ tr('cart', user.language) }}</h1>
+</div>
+
+<div class="px-4 {% if cart_items %}pb-[180px]{% else %}pb-nav{% endif %}">
+    {% if cart_items %}
+    <form action="/shop/checkout" method="GET" id="cart-form">
+        <div class="space-y-3 mt-2">
+        {% for item in cart_items %}
+        <div id="cart-item-{{ item.id }}"
+            class="cart-item-row card-surface p-3 flex items-start gap-3 relative transition-all duration-300 {% if item.unavailable %}opacity-50{% endif %}">
+            <!-- Selection Checkbox -->
+            <div class="pt-1.5 flex-shrink-0">
+                <input type="checkbox" name="items" value="{{ item.id }}" data-price="{{ item.product.effective_price }}"
+                    class="cart-checkbox"
+                    {% if not item.unavailable %}checked{% else %}disabled{% endif %}
+                    onchange="calculateTotal(); tg.HapticFeedback.selectionChanged();">
+            </div>
+
+            <!-- Image -->
+            <div class="w-16 h-16 bg-[#F7F5F2] rounded-xl p-1.5 flex-shrink-0 flex items-center justify-center">
+                {% if item.product.image_path %}
+                <img src="{{ item.product.image_path }}" class="w-full h-full object-contain mix-blend-multiply">
+                {% else %}
+                <div class="text-[#D6C0AD] text-xl opacity-40">
+                    <i class="fas fa-box"></i>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Info -->
+            <div class="flex-1 min-w-0 pr-6">
+                <h3 class="text-[13px] font-bold text-[#3E2310] line-clamp-2 leading-tight mb-0.5">
+                    {{ item.product.name_ru if user.language == 'ru' else item.product.name_uz }}
+                </h3>
+                <div class="product-price product-price--row">
+                    {% if item.product.has_discount %}
+                    <span class="product-price__current">{{ item.product.discount_price | number_format }} {{ tr('sum', user.language) }}</span>
+                    <span class="product-price__old product-price__old--cart">{{ item.product.price | number_format }} {{ tr('sum', user.language) }}</span>
+                    {% else %}
+                    <span class="product-price__current product-price__current--regular">{{ item.product.price | number_format }} {{ tr('sum', user.language) }}</span>
+                    {% endif %}
+                </div>
+                {% if item.product.sell_type == 'pack' and item.product.pack_quantity %}
+                <span class="text-[10px] text-[#8C735F] font-semibold">{{ tr('per_pack', user.language) }} ({{ item.product.pack_quantity }} {{ tr('pack_pcs', user.language) }})</span>
+                {% endif %}
+                {% if item.unavailable %}
+                <span class="inline-block bg-red-50 text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded mt-1">{{ tr('not_available', user.language) }}</span>
+                {% endif %}
+
+                <!-- Quantity Control -->
+                <div class="flex items-center mt-2 bg-[#F2E8DC]/60 rounded-xl w-max">
+                    <button type="button" onclick="updateCartQuantity({{ item.id }}, -1)"
+                        class="qty-btn" {% if item.unavailable %}disabled{% endif %}>−</button>
+                    <input id="qty-{{ item.id }}"
+                        type="text" inputmode="numeric" pattern="[0-9]*"
+                        value="{{ item.quantity }}"
+                        data-stock="{{ item.available_stock if item.available_stock is defined else item.product.stock }}"
+                        data-min-quantity="{{ item.min_order_quantity if item.min_order_quantity is defined else 1 }}"
+                        data-cart-id="{{ item.id }}"
+                        class="qty-input"
+                        {% if item.unavailable %}disabled{% endif %}
+                        onfocus="this.select()"
+                        oninput="handleCartQtyInput(this)"
+                        onblur="commitCartQtyInput(this)"
+                        onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
+                    <button type="button" onclick="updateCartQuantity({{ item.id }}, 1)"
+                        class="qty-btn" {% if item.unavailable %}disabled{% endif %}>+</button>
+                </div>
+            </div>
+
+            <!-- Delete -->
+            <button type="button" onclick="removeCartItem({{ item.id }})"
+                class="cart-delete-btn absolute top-2.5 right-2.5">
+                <i class="fas fa-times text-sm"></i>
+            </button>
+        </div>
+        {% endfor %}
+        </div>
+    </form>
+    {% else %}
+    <div class="text-center py-20">
+        <div class="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-coffee">
+            <span class="text-3xl">🧺</span>
+        </div>
+        <h2 class="text-lg font-bold text-[#3E2310] mb-1.5">{{ tr('cart_empty', user.language) }}</h2>
+        <p class="text-[#8C735F] mb-6 px-8 text-sm">{{ tr('cart_empty_hint', user.language) }}</p>
+        <a href="/shop"
+            class="btn-primary px-6 py-3 active:scale-95 transition">
+            {{ tr('go_to_catalog', user.language) }}
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Summary Bar -->
+{% if cart_items %}
+<div class="cart-summary-bar">
+    <div class="card-surface p-4">
+        <div class="flex justify-between items-center mb-3 border-b border-dashed border-[#E0CCB7]/50 pb-3">
+            <span class="text-[#8C735F] text-sm font-medium">{{ tr('total_to_pay', user.language) }}</span>
+            <span class="text-xl font-extrabold text-[#3E2310] tabular-nums"><span id="total-price">0</span> {{ tr('sum', user.language) }}</span>
+        </div>
+        <button form="cart-form" id="checkout-btn"
+            class="w-full btn-primary active:scale-[0.98] transition-all">
+            <span>{{ tr('checkout_btn', user.language) }}</span>
+            <i class="fas fa-arrow-right text-xs"></i>
+        </button>
+    </div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', calculateTotal);
+
+    // Intercept form submission: wait for pending qty updates before navigating
+    const cartForm = document.getElementById('cart-form');
+    const checkoutBtn = document.getElementById('checkout-btn');
+    if (cartForm && checkoutBtn) {
+        checkoutBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+
+            if (typeof activeRequests !== 'undefined' && activeRequests > 0) {
+                // Show saving indicator and poll until requests finish
+                checkoutBtn.disabled = true;
+                checkoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + T.updating;
+                let checks = 0;
+                const waitInterval = setInterval(() => {
+                    if (activeRequests === 0) {
+                        clearInterval(waitInterval);
+                        cartForm.submit();
+                    }
+                    if (++checks > 20) {
+                        clearInterval(waitInterval);
+                        if (typeof showToast === 'function') showToast(T.connection_error || T.update_error, 'error');
+                        calculateTotal();
+                    }
+                }, 100);
+                return;
+            }
+
+            cartForm.submit();
+        });
+    }
+</script>
+{% endif %}
+{% if removed_inactive %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof showToast === 'function') {
+            showToast(T.items_removed_notice, 'info');
+        }
+    });
+</script>
+{% endif %}
+{% if stock_adjusted %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof showToast === 'function') {
+            showToast(T.stock_adjusted_notice, 'info');
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

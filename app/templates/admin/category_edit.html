@@ -1,0 +1,99 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Редактирование категории — {{ category.name_ru }}{% endblock %}
+{% block header %}Категория: {{ category.name_ru }}{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-red-600 text-sm font-medium">
+    {{ error }}
+</div>
+{% endif %}
+{% if success %}
+<div class="mb-4 rounded-xl border border-green-200 bg-green-50 px-5 py-3 text-green-700 text-sm font-medium">
+    {{ success }}
+</div>
+{% endif %}
+
+<div class="mb-4">
+    <a href="/admin/categories" class="text-sm font-semibold text-[#6B3F1E] hover:text-[#543116]">
+        <i class="fas fa-arrow-left mr-1"></i> Назад к категориям
+    </a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6">
+    <div class="glass-card p-6">
+        <h4 class="text-lg font-bold text-[#3E2310] mb-5">Редактирование названий</h4>
+        <form action="/admin/categories/{{ category.id }}/edit" method="POST" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label class="block text-[#8C735F] text-xs font-bold uppercase tracking-wider mb-1.5">Название (RU)</label>
+                <input name="name_ru" type="text" value="{{ category.name_ru }}" class="admin-input w-full" required>
+            </div>
+            <div>
+                <label class="block text-[#8C735F] text-xs font-bold uppercase tracking-wider mb-1.5">Название (UZ)</label>
+                <input name="name_uz" type="text" value="{{ category.name_uz }}" class="admin-input w-full" required>
+            </div>
+            <button type="submit" class="admin-btn-accent">
+                <i class="fas fa-save mr-1.5"></i> Сохранить изменения
+            </button>
+        </form>
+    </div>
+
+    <div class="glass-card p-6 h-fit">
+        <h4 class="text-lg font-bold text-[#3E2310] mb-4">Состояние</h4>
+        <div class="space-y-3 text-sm">
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-[#8C735F]">Статус</span>
+                {% if category.is_active %}
+                <span class="chip bg-green-100 text-green-700">Активна</span>
+                {% else %}
+                <span class="chip bg-gray-100 text-gray-600">Архив</span>
+                {% endif %}
+            </div>
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-[#8C735F]">Всего товаров</span>
+                <span class="font-bold text-[#3E2310]">{{ total_products }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-[#8C735F]">Активных товаров</span>
+                <span class="font-bold {% if active_products > 0 %}text-amber-700{% else %}text-[#3E2310]{% endif %}">{{ active_products }}</span>
+            </div>
+        </div>
+
+        {% if total_products > 0 and category.is_active %}
+        <div class="mt-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800 leading-relaxed">
+            Пока в категории есть товары, архивировать её нельзя. Сначала перенесите их в другую категорию.
+        </div>
+        {% endif %}
+
+        <div class="mt-5 flex flex-col gap-2">
+            {% if category.is_active and total_products > 0 %}
+            <button type="button" disabled
+                class="admin-btn w-full opacity-60 cursor-not-allowed"
+                title="Архивация недоступна, пока в категории есть товары">
+                Архивировать категорию
+            </button>
+            {% else %}
+            <form action="/admin/categories/{{ category.id }}/toggle" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="admin-btn w-full"
+                    onclick="return confirm('{{ 'Вернуть категорию из архива?' if not category.is_active else 'Архивировать категорию?' }}');">
+                    {{ 'Восстановить категорию' if not category.is_active else 'Архивировать категорию' }}
+                </button>
+            </form>
+            {% endif %}
+            {% if total_products == 0 %}
+            <form action="/admin/categories/{{ category.id }}/delete" method="POST"
+                onsubmit="return confirm('Удалить пустую категорию?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit"
+                    class="w-full rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm py-2.5 transition">
+                    Удалить категорию
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

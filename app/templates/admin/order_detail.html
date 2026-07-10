@@ -1,0 +1,239 @@
+{% extends "admin/base.html" %}
+
+{% block header %}Заказ #{{ order.id }}{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap -mx-2 md:-mx-3">
+    <!-- Левая колонка: Инфо -->
+    <div class="w-full md:w-1/3 px-2 md:px-3 mb-4 md:mb-5">
+        <div class="glass-card p-3.5 md:p-5">
+            <h4 class="text-base font-bold text-[#3E2310] mb-3 pb-2 border-b border-[#E0CCB7]/40">📦 Информация</h4>
+            <div class="space-y-2 text-sm">
+                <p><span class="font-bold text-[#3E2310]">Клиент:</span> <span class="text-[#8C735F]">
+                    {% if order.user %}{{ order.user.username }}{% elif order.customer_name %}{{ order.customer_name }} <span class="inline-block ml-1 bg-orange-100 text-orange-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">ручной</span>{% else %}Удалён{% endif %}
+                </span></p>
+                <p><span class="font-bold text-[#3E2310]">Дата:</span> <span class="text-[#8C735F]">{{ order.created_at | datetime_uz }}</span></p>
+                <p><span class="font-bold text-[#3E2310]">Телефон:</span> <a href="tel:{{ order.contact_phone }}"
+                        class="text-[#6B3F1E] font-bold hover:underline">{{ order.contact_phone }}</a></p>
+                <p><span class="font-bold text-[#3E2310]">Способ:</span>
+                    <span class="text-[#8C735F]">
+                    {% if order.delivery_method == 'delivery' %}
+                    {{ order.delivery_option_name or 'Доставка' }}
+                    {% elif order.delivery_method == 'pickup' %}
+                    Самовывоз
+                    {% elif order.delivery_method == 'digital' %}
+                    Цифровая доставка
+                    {% else %}
+                    Не указан
+                    {% endif %}
+                    </span>
+                </p>
+                {% if order.delivery_address %}
+                <p><span class="font-bold text-[#3E2310]">Адрес:</span><br><span class="text-[#8C735F]">{{ order.delivery_address }}</span></p>
+                {% endif %}
+                {% if order.delivery_latitude is not none and order.delivery_longitude is not none %}
+                {% set map_lat = order.delivery_latitude %}
+                {% set map_lon = order.delivery_longitude %}
+                <div class="rounded-xl border border-[#E0CCB7] bg-[#F9F4EF] p-3">
+                    <div class="mb-2 flex items-center justify-between gap-2">
+                        <span class="font-bold text-[#3E2310]">Геолокация:</span>
+                        <a href="https://www.openstreetmap.org/?mlat={{ map_lat }}&mlon={{ map_lon }}#map=17/{{ map_lat }}/{{ map_lon }}"
+                            target="_blank" rel="noopener"
+                            class="text-xs font-bold text-[#6B3F1E] hover:underline">
+                            Открыть карту
+                        </a>
+                    </div>
+                    <p class="mb-2 text-[11px] font-semibold text-[#8C735F] tabular-nums">
+                        {{ "%.6f"|format(map_lat) }}, {{ "%.6f"|format(map_lon) }}
+                    </p>
+                    <iframe
+                        class="h-48 w-full rounded-lg border border-[#E0CCB7] bg-white"
+                        loading="lazy"
+                        referrerpolicy="no-referrer-when-downgrade"
+                        src="https://www.openstreetmap.org/export/embed.html?bbox={{ map_lon - 0.006 }}%2C{{ map_lat - 0.004 }}%2C{{ map_lon + 0.006 }}%2C{{ map_lat + 0.004 }}&amp;layer=mapnik&amp;marker={{ map_lat }}%2C{{ map_lon }}">
+                    </iframe>
+                </div>
+                {% endif %}
+                {% if order.delivery_price and order.delivery_price > 0 %}
+                <p><span class="font-bold text-[#3E2310]">Стоимость доставки:</span> <span class="text-[#8C735F] tabular-nums">{{ order.delivery_price | number_format }} сум</span></p>
+                {% endif %}
+                {% if order.comment %}
+                <div class="bg-[#F2E8DC]/60 p-3 rounded-xl text-sm mt-2">
+                    <span class="font-bold text-[#3E2310]">Комментарий:</span>
+                    <span class="text-[#8C735F]">{{ order.comment }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Управление статусом -->
+        <div class="glass-card p-3.5 md:p-5 mt-3 md:mt-4">
+            <h4 class="text-base font-bold text-[#3E2310] mb-3 pb-2 border-b border-[#E0CCB7]/40">⚙️ Действия</h4>
+            <div class="mb-3 flex flex-wrap gap-2">
+                <span class="text-xs font-bold uppercase tracking-wider text-[#8C735F]">Статус:</span>
+                {% if order.status == 'new' %}
+                <span class="bg-blue-100 text-blue-700 py-0.5 px-2 rounded-full text-xs font-bold">Новый</span>
+                {% elif order.status == 'paid' %}
+                <span class="bg-emerald-100 text-emerald-700 py-0.5 px-2 rounded-full text-xs font-bold">Оплачен</span>
+                {% elif order.status == 'delivery' %}
+                <span class="bg-yellow-100 text-yellow-700 py-0.5 px-2 rounded-full text-xs font-bold">В пути</span>
+                {% elif order.status == 'done' %}
+                <span class="bg-green-100 text-green-700 py-0.5 px-2 rounded-full text-xs font-bold">Выполнен</span>
+                {% elif order.status == 'cancelled' %}
+                <span class="bg-red-100 text-red-700 py-0.5 px-2 rounded-full text-xs font-bold">Отменён</span>
+                {% else %}
+                <span class="bg-gray-100 text-gray-700 py-0.5 px-2 rounded-full text-xs font-bold">{{ order.status }}</span>
+                {% endif %}
+                <span class="text-xs font-bold uppercase tracking-wider text-[#8C735F] ml-2">Оплата:</span>
+                <span class="bg-[#EFE6DB] text-[#3E2310] py-0.5 px-2 rounded-full text-xs font-bold">
+                    {% if order.payment_method == 'cash' %}Наличные{% elif order.payment_method == 'card' %}Payme{% elif order.payment_method == 'click' %}Click{% elif order.payment_method == 'card_transfer' %}Перевод на карту{% else %}{{ order.payment_method }}{% endif %}
+                </span>
+            </div>
+            {% if order.payment_method == 'card_transfer' %}
+            <div class="mb-3 rounded-xl border border-[#E0CCB7] bg-[#F9F4EF] px-4 py-3 text-sm">
+                <span class="font-bold text-[#3E2310]">Чек оплаты:</span>
+                {% if order.payment_receipt_path %}
+                <a href="/admin/orders/{{ order.id }}/receipt" target="_blank"
+                    class="mt-2 block overflow-hidden rounded-xl border border-[#E0CCB7] bg-white">
+                    <img src="/admin/orders/{{ order.id }}/receipt" alt="Чек оплаты"
+                        class="max-h-80 w-full object-contain">
+                </a>
+                <a href="/admin/orders/{{ order.id }}/receipt" target="_blank"
+                    class="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-[#6B3F1E] hover:underline">
+                    <i class="fas fa-up-right-from-square"></i> Открыть чек в новой вкладке
+                </a>
+                {% else %}
+                <p class="mt-1 text-red-600 font-semibold">Чек не прикреплен.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if pay_url %}
+            <div class="mb-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                <span class="font-bold">Ссылка на оплату:</span><br>
+                <div class="flex items-center gap-2 mt-1">
+                    <input type="text" value="{{ pay_url }}" readonly
+                        class="flex-1 bg-white border border-blue-200 rounded-lg px-2 py-1 text-xs font-mono select-all"
+                        id="payUrlInput" onclick="this.select()">
+                    <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('payUrlInput').value); this.textContent='✓'" 
+                        class="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded-lg transition">
+                        Копировать
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+            {% if error %}
+            <div class="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 font-medium">
+                {{ error }}
+            </div>
+            {% endif %}
+            {% if success %}
+            <div class="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 font-medium">
+                {{ success }}
+            </div>
+            {% endif %}
+            <form action="/admin/orders/{{ order.id }}/status" method="POST" class="flex flex-col gap-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                {% if order.payment_method == 'card_transfer' and order.status == 'new' %}
+                <button name="status" value="paid"
+                    class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-xl transition text-sm">
+                    ✅ Подтвердить оплату
+                </button>
+                {% endif %}
+
+                {% if (order.status == 'new' and order.payment_method != 'card_transfer') or order.status == 'paid' %}
+                <button name="status" value="delivery"
+                    class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-4 rounded-xl transition text-sm">
+                    🚚 Отправить в доставку
+                </button>
+                {% endif %}
+
+                {% if order.status == 'delivery' or (order.status == 'new' and order.payment_method != 'card_transfer') or order.status == 'paid' %}
+                <button name="status" value="done"
+                    class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 px-4 rounded-xl transition text-sm">
+                    ✅ Завершить заказ
+                </button>
+                {% endif %}
+
+                {% if order.status == 'new' %}
+                <button name="status" value="cancelled"
+                    class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 px-4 rounded-xl transition text-sm"
+                    onclick="return confirm('Вы уверены, что хотите отменить заказ?');">
+                    ❌ Отменить заказ
+                </button>
+                {% endif %}
+            </form>
+            {% if order.status == 'cancelled' and order.payment_method == 'cash' and order.order_type == 'product' %}
+            <form action="/admin/orders/{{ order.id }}/restore" method="POST" class="mt-3"
+                onsubmit="return confirm('Восстановить этот заказ? Товары будут снова зарезервированы на складе.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl transition text-sm">
+                    ↩️ Восстановить заказ
+                </button>
+            </form>
+            {% endif %}
+            {% if user.role == 'superadmin' and not order.user %}
+            <form action="/admin/orders/{{ order.id }}/delete" method="POST" class="mt-3"
+                onsubmit="return confirm('Удалить ручной заказ #{{ order.id }}? Это действие нельзя отменить.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit"
+                    class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-xl transition text-sm">
+                    🗑️ Удалить заказ
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Правая колонка: Товары -->
+    <div class="w-full md:w-2/3 px-2 md:px-3 mb-4 md:mb-5">
+        <div class="glass-card p-3.5 md:p-5 overflow-hidden">
+            <h4 class="text-base font-bold text-[#3E2310] mb-3 pb-2 border-b border-[#E0CCB7]/40">🛒 Состав заказа</h4>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead>
+                        <tr class="text-[#8C735F] text-xs uppercase tracking-wider">
+                            <th class="py-2.5 px-4 border-b border-[#E0CCB7]/30">Товар</th>
+                            <th class="py-2.5 px-4 border-b border-[#E0CCB7]/30 text-center">Цена</th>
+                            <th class="py-2.5 px-4 border-b border-[#E0CCB7]/30 text-center">Кол-во</th>
+                            <th class="py-2.5 px-4 border-b border-[#E0CCB7]/30 text-right">Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-[#3E2310]">
+                        {% for item in order.items %}
+                        <tr class="hover:bg-[#F9F4EF] transition">
+                            <td class="py-2.5 px-4 border-b border-[#E0CCB7]/20 font-medium">{{ item.product_name }}</td>
+                            <td class="py-2.5 px-4 border-b border-[#E0CCB7]/20 text-center tabular-nums">{{ item.price_at_purchase | number_format }}</td>
+                            <td class="py-2.5 px-4 border-b border-[#E0CCB7]/20 text-center">{{ item.quantity }}</td>
+                            <td class="py-2.5 px-4 border-b border-[#E0CCB7]/20 text-right font-bold tabular-nums">{{ (item.price_at_purchase * item.quantity) | number_format }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        {% if order.discount_amount > 0 %}
+                        <tr>
+                            <td colspan="3" class="py-2 text-right text-sm text-[#8C735F]">
+                                Скидка{% if order.promo_code %} ({{ order.promo_code.code }}){% endif %}:
+                            </td>
+                            <td class="py-2 text-right font-bold text-sm text-green-600 tabular-nums">-{{ order.discount_amount | number_format }} сум</td>
+                        </tr>
+                        {% endif %}
+                        {% if order.delivery_price and order.delivery_price > 0 %}
+                        <tr>
+                            <td colspan="3" class="py-2 text-right text-sm text-[#8C735F]">
+                                Доставка{% if order.delivery_option_name %} ({{ order.delivery_option_name }}){% endif %}:
+                            </td>
+                            <td class="py-2 text-right font-bold text-sm text-[#3E2310] tabular-nums">{{ order.delivery_price | number_format }} сум</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td colspan="3" class="py-4 text-right font-bold text-base text-[#3E2310]">ИТОГО:</td>
+                            <td class="py-4 text-right font-extrabold text-base text-[#6B3F1E] tabular-nums">{{ order.total_amount | number_format }} сум</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

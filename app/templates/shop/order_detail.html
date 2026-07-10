@@ -1,0 +1,197 @@
+{% extends "shop/base.html" %}
+
+{% block content %}
+<div class="sticky top-0 page-header z-30 px-4 py-3 flex items-center">
+    <a href="/shop/profile"
+        class="mr-3 w-10 h-10 bg-white rounded-xl flex items-center justify-center text-[#3E2310] shadow-sm active:scale-90 transition">
+        <i class="fas fa-arrow-left text-sm"></i>
+    </a>
+    <h1 class="text-lg font-extrabold text-[#3E2310]">{{ tr('order_n', user.language) }} #{{ order.id }}</h1>
+</div>
+
+<div class="px-4 pb-nav space-y-4 mt-2">
+    <!-- Status -->
+    <div class="card-surface p-4">
+        <div class="flex items-center justify-between mb-3">
+            <span class="text-[10px] font-bold text-[#8C735F] uppercase tracking-wider">{{ tr('status', user.language) }}</span>
+            <span id="order-status-badge" class="order-status-badge
+                {% if order.status == 'new' %}text-blue-600 bg-blue-50
+                {% elif order.status == 'paid' %}text-emerald-600 bg-emerald-50
+                {% elif order.status == 'done' %}text-green-600 bg-green-50
+                {% elif order.status == 'cancelled' %}text-red-500 bg-red-50
+                {% elif order.status == 'delivery' %}text-amber-600 bg-amber-50
+                {% else %}text-[#8C735F] bg-[#F2E8DC]{% endif %}">
+                {% if order.status == 'new' %}{{ tr('status_new', user.language) }}
+                {% elif order.status == 'paid' %}{{ tr('status_paid', user.language) }}
+                {% elif order.status == 'delivery' %}{{ tr('status_delivery', user.language) }}
+                {% elif order.status == 'done' %}{{ tr('status_done', user.language) }}
+                {% elif order.status == 'cancelled' %}{{ tr('status_cancelled', user.language) }}
+                {% else %}{{ order.status }}{% endif %}
+            </span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+                <span class="text-[10px] font-bold text-[#8C735F] uppercase tracking-wider block mb-0.5">{{ tr('date', user.language) }}</span>
+                <span class="font-bold text-[#3E2310]">{{ order.created_at | datetime_uz('%d.%m.%Y %H:%M') }}</span>
+            </div>
+            <div>
+                <span class="text-[10px] font-bold text-[#8C735F] uppercase tracking-wider block mb-0.5">{{ tr('payment', user.language) }}</span>
+                <span class="font-bold text-[#3E2310]">
+                    {% if order.payment_method == 'cash' %}{{ tr('payment_cash', user.language) }}
+                    {% elif order.payment_method == 'card' %}{{ tr('payment_payme', user.language) }}
+                    {% elif order.payment_method == 'click' %}{{ tr('payment_click', user.language) }}
+                    {% elif order.payment_method == 'card_transfer' %}{{ tr('payment_card_transfer', user.language) }}
+                    {% else %}{{ order.payment_method }}{% endif %}
+                </span>
+            </div>
+            <div>
+                <span class="text-[10px] font-bold text-[#8C735F] uppercase tracking-wider block mb-0.5">{{ tr('delivery', user.language) }}</span>
+                <span class="font-bold text-[#3E2310]">
+                    {% if order.delivery_method == 'pickup' %}{{ tr('delivery_pickup', user.language) }}{% else %}{{ order.delivery_option_name or tr('delivery_delivery', user.language) }}{% endif %}
+                </span>
+            </div>
+            <div>
+                <span class="text-[10px] font-bold text-[#8C735F] uppercase tracking-wider block mb-0.5">{{ tr('phone', user.language) }}</span>
+                <span class="font-bold text-[#3E2310]">{{ order.contact_phone }}</span>
+            </div>
+        </div>
+        {% if order.delivery_address %}
+        <div class="mt-3 pt-3 border-t border-[#F2E8DC]/60">
+            <span class="text-[10px] font-bold text-[#8C735F] uppercase tracking-wider block mb-0.5">{{ tr('address', user.language) }}</span>
+            <span class="text-sm text-[#3E2310]">{{ order.delivery_address }}</span>
+        </div>
+        {% endif %}
+        {% if order.comment %}
+        <div class="mt-3 pt-3 border-t border-[#F2E8DC]/60">
+            <span class="text-[10px] font-bold text-[#8C735F] uppercase tracking-wider block mb-0.5">{{ tr('comment', user.language) }}</span>
+            <span class="text-sm text-[#3E2310]">{{ order.comment }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Items -->
+    <div class="card-surface p-4">
+        <h3 class="text-[10px] font-bold text-[#8C735F] uppercase tracking-wider mb-3">{{ tr('items', user.language) }}</h3>
+        <div class="space-y-3">
+            {% for item in order.items %}
+            <div class="flex items-center gap-3">
+                {% if item.product and item.product.image_path %}
+                <div class="w-12 h-12 bg-[#F7F5F2] rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden">
+                    <img src="{{ item.product.image_path }}" class="w-full h-full object-contain mix-blend-multiply">
+                </div>
+                {% else %}
+                <div class="w-12 h-12 bg-[#F7F5F2] rounded-lg flex-shrink-0 flex items-center justify-center text-[#D6C0AD]">
+                    <i class="fas fa-box text-sm"></i>
+                </div>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold text-[#3E2310] truncate">{{ item.product_name }}</p>
+                    <p class="text-[11px] text-[#8C735F]">{{ item.quantity }} {{ tr('pcs', user.language) }} × {{ item.price_at_purchase | number_format }} {{ tr('sum', user.language) }}</p>
+                </div>
+                <span class="font-extrabold text-[#6B3F1E] text-sm tabular-nums flex-shrink-0">
+                    {{ (item.price_at_purchase * item.quantity) | number_format }} {{ tr('sum', user.language) }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Totals -->
+    <div class="card-surface p-4">
+        {% if order.discount_amount > 0 %}
+        <div class="flex justify-between items-center mb-2">
+            <span class="text-sm text-[#8C735F]">{{ tr('discount', user.language) }}{% if order.promo_code %} ({{ order.promo_code.code }}){% endif %}</span>
+            <span class="text-sm font-bold text-green-600">-{{ order.discount_amount | number_format }} {{ tr('sum', user.language) }}</span>
+        </div>
+        {% endif %}
+        {% if order.delivery_price and order.delivery_price > 0 %}
+        <div class="flex justify-between items-center mb-2">
+            <span class="text-sm text-[#8C735F]">{{ tr('delivery', user.language) }}</span>
+            <span class="text-sm font-bold text-[#3E2310]">{{ order.delivery_price | number_format }} {{ tr('sum', user.language) }}</span>
+        </div>
+        {% endif %}
+        <div class="flex justify-between items-baseline">
+            <span class="text-sm font-bold text-[#8C735F]">{{ tr('total', user.language) }}</span>
+            <span class="text-xl font-extrabold text-[#3E2310] tabular-nums">{{ order.total_amount | number_format }} <span class="text-sm text-[#8C735F]">{{ tr('sum', user.language) }}</span></span>
+        </div>
+    </div>
+
+    {% if order.status == 'new' and order.payment_method in ['card', 'click'] %}
+    <a href="{{ payment_url }}"
+        class="w-full bg-[#3E2310] text-white font-bold py-3 px-4 rounded-2xl active:scale-[0.98] transition text-sm flex items-center justify-center gap-2 mb-2">
+        <i class="fas fa-credit-card"></i>
+        <span>{{ tr('pay_now', user.language) }}</span>
+    </a>
+    {% endif %}
+
+    {% if order.status == 'new' %}
+    <button id="cancel-order-btn" onclick="cancelOrder({{ order.id }})"
+        class="w-full bg-red-50 border border-red-200 text-red-600 font-bold py-3 px-4 rounded-2xl active:scale-[0.98] transition text-sm flex items-center justify-center gap-2">
+        <i class="fas fa-times"></i>
+        <span>{{ tr('cancel_order', user.language) }}</span>
+    </button>
+    {% endif %}
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+    async function cancelOrder(orderId) {
+        if (!confirm(T.cancel_order_confirm)) return;
+        const btn = document.getElementById('cancel-order-btn');
+        const originalHTML = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + T.processing;
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const res = await fetch(`/shop/api/order/${orderId}/cancel`, {
+                method: 'POST', headers: { 'X-CSRF-Token': csrfToken }
+            });
+            const data = await res.json();
+            if (data.success) {
+                if (typeof showToast === 'function') showToast(T.order_cancelled_msg, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                if (typeof showToast === 'function') showToast(data.message || T.error, 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            }
+        } catch(e) {
+            if (typeof showToast === 'function') showToast(T.connection_error, 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+        }
+    }
+
+    // SSE: Real-time order status updates
+    (function() {
+        const orderId = {{ order.id }};
+        const currentStatus = '{{ order.status }}';
+        if (['done', 'cancelled'].includes(currentStatus)) return;
+
+        try {
+            const evtSource = new EventSource(`/shop/api/orders/${orderId}/events`);
+            evtSource.addEventListener('status', function(e) {
+                try {
+                    const data = JSON.parse(e.data);
+                    const badge = document.getElementById('order-status-badge');
+                    if (!badge) return;
+                    const statusMap = {
+                        'new': [T.status_new, 'text-blue-600 bg-blue-50'],
+                        'paid': [T.status_paid, 'text-emerald-600 bg-emerald-50'],
+                        'delivery': [T.status_delivery, 'text-amber-600 bg-amber-50'],
+                        'done': [T.status_done, 'text-green-600 bg-green-50'],
+                        'cancelled': [T.status_cancelled, 'text-red-500 bg-red-50'],
+                    };
+                    const s = statusMap[data.status] || [data.status, 'text-[#8C735F] bg-[#F2E8DC]'];
+                    badge.textContent = s[0];
+                    badge.className = 'order-status-badge ' + s[1];
+                    if (typeof showToast === 'function') showToast(T.status_updated + s[0], 'success');
+                    if (['done', 'cancelled'].includes(data.status)) evtSource.close();
+                } catch(err) {}
+            });
+            evtSource.onerror = function() { evtSource.close(); };
+        } catch(e) {}
+    })();
+</script>
+{% endblock %}

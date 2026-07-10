@@ -1,0 +1,52 @@
+# Git
+.git
+.gitignore
+.github/
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Secrets / runtime data mounted on the server
+.env
+.env.*
+final_certs/
+letsencrypt/
+letsencrypt-lib/
+certbot/
+backups/
+media/
+logs/
+
+# Nginx config (mounted via volume)
+nginx/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+Thumbs.db
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+
+# Node (tailwind dev)
+node_modules/
+package-lock.json
+
+# Docs / reports
+PROJECT_FULL_REPORT.md
+*.bak.*
+*.backup
+
+# Dev scripts
+check.py
